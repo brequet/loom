@@ -9,6 +9,7 @@ export default defineConfig({
   resolve: {
     alias: {
       $lib: path.resolve('./src/lib'),
+      $shared: path.resolve('../shared'),
     },
   },
 });

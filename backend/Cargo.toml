@@ -16,3 +16,4 @@ tower-http = { version = "0.6.8", features = ["cors", "fs"] }
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["fmt"] }
 ts-rs = { version = "12.0.1", features = ["serde-compat"] }
+uuid = { version = "1.23.1", features = ["v4"] }

@@ -1,10 +1,18 @@
 <script lang="ts">
   import './app.css';
-  import { Button } from '$lib/components/ui/button/index.js';
+  import Router from 'svelte-spa-router';
+  import Layout from '$lib/components/Layout.svelte';
+  import Dashboard from '$lib/pages/Dashboard.svelte';
+  import SessionDetail from '$lib/pages/SessionDetail.svelte';
+  import Settings from '$lib/pages/Settings.svelte';
+
+  const routes = {
+    '/': Dashboard,
+    '/sessions/:id': SessionDetail,
+    '/settings': Settings,
+  };
 </script>
 
-<main class="flex min-h-screen flex-col items-center justify-center gap-4">
-  <h1 class="text-4xl font-bold">Loom</h1>
-  <p class="text-muted-foreground">Manage multiple OpenCode sessions</p>
-  <Button>Get Started</Button>
-</main>
+<Layout>
+  <Router {routes} />
+</Layout>

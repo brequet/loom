@@ -8,7 +8,7 @@ pub struct HealthResponse {
     pub version: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
 pub enum SessionState {
     #[serde(rename = "provisioning")]
@@ -21,7 +21,30 @@ pub enum SessionState {
     Terminated,
 }
 
-#[derive(Debug, Serialize, Deserialize, TS)]
+impl std::fmt::Display for SessionState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SessionState::Provisioning => write!(f, "provisioning"),
+            SessionState::Running => write!(f, "running"),
+            SessionState::Stopped => write!(f, "stopped"),
+            SessionState::Terminated => write!(f, "terminated"),
+        }
+    }
+}
+
+impl SessionState {
+    pub fn from_str_val(s: &str) -> Self {
+        match s {
+            "provisioning" => SessionState::Provisioning,
+            "running" => SessionState::Running,
+            "stopped" => SessionState::Stopped,
+            "terminated" => SessionState::Terminated,
+            _ => SessionState::Stopped,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
 pub enum SourceType {
     #[serde(rename = "jira")]
@@ -32,7 +55,27 @@ pub enum SourceType {
     Scratch,
 }
 
-#[derive(Debug, Serialize, Deserialize, TS)]
+impl std::fmt::Display for SourceType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SourceType::Jira => write!(f, "jira"),
+            SourceType::Gitlab => write!(f, "gitlab"),
+            SourceType::Scratch => write!(f, "scratch"),
+        }
+    }
+}
+
+impl SourceType {
+    pub fn from_str_val(s: &str) -> Self {
+        match s {
+            "jira" => SourceType::Jira,
+            "gitlab" => SourceType::Gitlab,
+            _ => SourceType::Scratch,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
 pub struct Session {
     pub id: String,
@@ -47,7 +90,7 @@ pub struct Session {
     pub updated_at: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
 pub struct Project {
     pub id: String,
@@ -55,4 +98,100 @@ pub struct Project {
     pub repo_url: String,
     pub bare_clone_path: Option<String>,
     pub created_at: String,
+}
+
+// -- Raw DB row types for sqlx::FromRow --
+
+#[derive(Debug, sqlx::FromRow)]
+pub struct SessionRow {
+    pub id: String,
+    pub title: String,
+    pub source_type: String,
+    pub source_ref: Option<String>,
+    pub state: String,
+    pub opencode_port: Option<i64>,
+    pub workspace_path: Option<String>,
+    pub project_id: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+impl From<SessionRow> for Session {
+    fn from(r: SessionRow) -> Self {
+        Session {
+            id: r.id,
+            title: r.title,
+            source_type: SourceType::from_str_val(&r.source_type),
+            source_ref: r.source_ref,
+            state: SessionState::from_str_val(&r.state),
+            opencode_port: r.opencode_port,
+            workspace_path: r.workspace_path,
+            project_id: r.project_id,
+            created_at: r.created_at,
+            updated_at: r.updated_at,
+        }
+    }
+}
+
+#[derive(Debug, sqlx::FromRow)]
+pub struct ProjectRow {
+    pub id: String,
+    pub name: String,
+    pub repo_url: String,
+    pub bare_clone_path: Option<String>,
+    pub created_at: String,
+}
+
+impl From<ProjectRow> for Project {
+    fn from(r: ProjectRow) -> Self {
+        Project {
+            id: r.id,
+            name: r.name,
+            repo_url: r.repo_url,
+            bare_clone_path: r.bare_clone_path,
+            created_at: r.created_at,
+        }
+    }
+}
+
+// -- Request/Response types --
+
+#[derive(Debug, Deserialize, TS)]
+#[ts(export)]
+pub struct CreateSessionRequest {
+    pub source_type: SourceType,
+    pub source_ref: Option<String>,
+    pub project_id: Option<String>,
+    pub title: Option<String>,
+}
+
+#[derive(Debug, Serialize, TS)]
+#[ts(export)]
+pub struct SessionListResponse {
+    pub sessions: Vec<Session>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct JiraIssue {
+    pub key: String,
+    pub summary: String,
+    pub description: Option<String>,
+    pub status: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct GitLabMergeRequest {
+    pub iid: i64,
+    pub title: String,
+    pub description: Option<String>,
+    pub source_branch: String,
+    pub web_url: String,
+    pub state: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SearchQuery {
+    pub q: String,
 }
