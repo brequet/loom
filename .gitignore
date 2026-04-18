@@ -1,0 +1,23 @@
+# Rust
+backend/target/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# ts-rs generated
+shared/*.ts
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
