@@ -11,7 +11,9 @@ use std::net::SocketAddr;
 use tower_http::cors::{Any, CorsLayer};
 
 use config::Config;
-use services::{gitlab::GitLabService, jira::JiraService, opencode::OpenCodeService, session::SessionService};
+use services::{
+    gitlab::GitLabService, jira::JiraService, opencode::OpenCodeService, session::SessionService,
+};
 
 #[tokio::main]
 async fn main() {
@@ -27,7 +29,9 @@ async fn main() {
         .await
         .expect("Failed to create repos directory");
 
-    let pool = db::create_pool().await.expect("Failed to create database pool");
+    let pool = db::create_pool()
+        .await
+        .expect("Failed to create database pool");
 
     sqlx::migrate!("./migrations")
         .run(&pool)
@@ -78,7 +82,5 @@ async fn main() {
         .await
         .expect("Failed to bind");
 
-    axum::serve(listener, app)
-        .await
-        .expect("Server error");
+    axum::serve(listener, app).await.expect("Server error");
 }

@@ -27,7 +27,7 @@ impl GitLabService {
         let token = config.gitlab_private_token.as_deref().unwrap();
 
         let url = format!(
-            "{base_url}/api/v4/merge_requests?search={}&state=opened&scope=all&per_page=10",
+            "{base_url}/api/v4/merge_requests?search={}&state=opened&scope=all&per_page=10&in=title",
             urlencoding(query)
         );
 
@@ -35,16 +35,26 @@ impl GitLabService {
             .client
             .get(&url)
             .header("PRIVATE-TOKEN", token)
+            .header("User-Agent", "Loom/0.1")
             .timeout(std::time::Duration::from_secs(10))
             .send()
-            .await?;
+            .await
+            .map_err(|e| AppError::HttpRequest {
+                context: "GitLab MR search".into(),
+                source: e,
+            })?;
 
         if !resp.status().is_success() {
-            tracing::error!("GitLab search failed: HTTP {}", resp.status());
-            return Ok(vec![]);
+            let status = resp.status().as_u16();
+            let body = resp.text().await.unwrap_or_default();
+            tracing::error!(status = status, body = %body, "GitLab search failed");
+            return Err(AppError::GitLabApi { status, body });
         }
 
-        let mrs: Vec<GitLabMergeRequest> = resp.json().await?;
+        let mrs: Vec<GitLabMergeRequest> = resp.json().await.map_err(|e| AppError::ResponseParse {
+            service: "GitLab".into(),
+            detail: format!("Failed to parse MR search response: {e}"),
+        })?;
         Ok(mrs)
     }
 
@@ -72,13 +82,23 @@ impl GitLabService {
             .header("PRIVATE-TOKEN", token)
             .timeout(std::time::Duration::from_secs(10))
             .send()
-            .await?;
+            .await
+            .map_err(|e| AppError::HttpRequest {
+                context: format!("GitLab get MR {iid}"),
+                source: e,
+            })?;
 
         if !resp.status().is_success() {
+            let status = resp.status().as_u16();
+            let body = resp.text().await.unwrap_or_default();
+            tracing::warn!(status = status, body = %body, "GitLab get MR failed");
             return Ok(None);
         }
 
-        let mr: GitLabMergeRequest = resp.json().await?;
+        let mr: GitLabMergeRequest = resp.json().await.map_err(|e| AppError::ResponseParse {
+            service: "GitLab".into(),
+            detail: format!("Failed to parse MR response: {e}"),
+        })?;
         Ok(Some(mr))
     }
 }

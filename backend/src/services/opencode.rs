@@ -29,11 +29,17 @@ impl OpenCodeService {
         let workspace = session
             .workspace_path
             .as_deref()
-            .ok_or_else(|| AppError::Internal("Session has no workspace path".into()))?;
+            .ok_or(AppError::MissingWorkspace)?;
 
-        let port = session
-            .opencode_port
-            .ok_or_else(|| AppError::Internal("Session has no port assigned".into()))?;
+        let port = session.opencode_port.ok_or(AppError::MissingPort)?;
+
+        tracing::info!(
+            session_id = %session.id,
+            port = port,
+            workspace = workspace,
+            bin = %config.opencode_bin,
+            "Spawning OpenCode process"
+        );
 
         let child = Command::new(&config.opencode_bin)
             .arg("web")
@@ -44,97 +50,151 @@ impl OpenCodeService {
             .current_dir(workspace)
             .kill_on_drop(true)
             .spawn()
-            .map_err(|e| AppError::Internal(format!("Failed to spawn opencode: {e}")))?;
+            .map_err(|e| AppError::OpenCodeSpawn(format!("{e} (bin: {})", config.opencode_bin)))?;
 
         let mut procs = self.processes.lock().await;
         procs.insert(session.id.clone(), child);
 
+        tracing::info!(session_id = %session.id, "OpenCode process spawned");
         Ok(())
     }
 
+    /// Create an OpenCode session via the REST API.
+    /// API: POST /session  body: { title?: string }  returns: Session { id, ... }
     pub async fn create_opencode_session(
         &self,
         port: i64,
-        model: &str,
+        title: &str,
     ) -> Result<String, AppError> {
-        let url = format!("http://localhost:{port}/api/session");
+        let url = format!("http://localhost:{port}/session");
 
-        // Retry a few times since the process takes time to start
+        tracing::info!(port = port, title = title, "Creating OpenCode session");
+
         let mut last_err = String::new();
-        for attempt in 0..15 {
-            if attempt > 0 {
+        for attempt in 1..=20 {
+            if attempt > 1 {
                 tokio::time::sleep(std::time::Duration::from_secs(1)).await;
             }
 
-            match self
+            tracing::debug!(attempt = attempt, url = %url, "Attempting to reach OpenCode");
+
+            let resp = match self
                 .client
                 .post(&url)
-                .json(&serde_json::json!({ "model": model }))
+                .json(&serde_json::json!({ "title": title }))
                 .timeout(std::time::Duration::from_secs(5))
                 .send()
                 .await
             {
-                Ok(resp) if resp.status().is_success() => {
-                    let body: serde_json::Value = resp.json().await.map_err(|e| {
-                        AppError::Internal(format!("Failed to parse opencode response: {e}"))
-                    })?;
-                    let session_id = body["id"]
-                        .as_str()
-                        .or_else(|| body["sessionID"].as_str())
-                        .ok_or_else(|| {
-                            AppError::Internal(format!(
-                                "No session ID in opencode response: {body}"
-                            ))
-                        })?
-                        .to_string();
-                    return Ok(session_id);
-                }
-                Ok(resp) => {
-                    last_err = format!("HTTP {}", resp.status());
-                }
+                Ok(resp) => resp,
                 Err(e) => {
                     last_err = e.to_string();
+                    tracing::debug!(attempt = attempt, error = %e, "OpenCode not reachable yet");
+                    continue;
                 }
+            };
+
+            let status = resp.status();
+            let body_text = resp.text().await.unwrap_or_default();
+
+            if !status.is_success() {
+                tracing::warn!(
+                    attempt = attempt,
+                    status = status.as_u16(),
+                    body = %body_text,
+                    "OpenCode returned non-success"
+                );
+                last_err = format!("HTTP {status}: {body_text}");
+                continue;
             }
+
+            tracing::debug!(body = %body_text, "OpenCode session creation response");
+
+            let body: serde_json::Value =
+                serde_json::from_str(&body_text).map_err(|e| AppError::ResponseParse {
+                    service: "OpenCode".into(),
+                    detail: format!("Invalid JSON: {e}. Body: {body_text}"),
+                })?;
+
+            // The response is a Session object with an "id" field
+            let session_id = body["id"]
+                .as_str()
+                .ok_or_else(|| AppError::OpenCodeNoSessionId {
+                    body: body_text.clone(),
+                })?
+                .to_string();
+
+            tracing::info!(opencode_session_id = %session_id, "OpenCode session created");
+            return Ok(session_id);
         }
 
-        Err(AppError::ServiceUnavailable(format!(
-            "OpenCode not ready after retries: {last_err}"
-        )))
+        Err(AppError::OpenCodeNotReady {
+            attempts: 20,
+            last_error: last_err,
+        })
     }
 
+    /// Send initial prompt to OpenCode session asynchronously.
+    /// API: POST /session/:id/prompt_async
+    /// body: { parts: [{ type: "text", text: "..." }], model?: { providerID, modelID } }
+    /// Returns 204 No Content on success.
     pub async fn send_initial_prompt(
         &self,
         port: i64,
         session_id: &str,
         prompt: &str,
+        model: &str,
     ) -> Result<(), AppError> {
-        let url = format!("http://localhost:{port}/api/session/{session_id}/prompt_async");
+        let url = format!("http://localhost:{port}/session/{session_id}/prompt_async");
+
+        tracing::info!(
+            port = port,
+            session_id = session_id,
+            model = model,
+            prompt_len = prompt.len(),
+            "Sending initial prompt to OpenCode"
+        );
+
+        // Parse model string "provider/model" into providerID and modelID
+        let (provider_id, model_id) = model.split_once('/').unwrap_or(("", model));
+
+        let body = serde_json::json!({
+            "parts": [{ "type": "text", "text": prompt }],
+            "model": {
+                "providerID": provider_id,
+                "modelID": model_id,
+            }
+        });
 
         let resp = self
             .client
             .post(&url)
-            .json(&serde_json::json!({ "content": prompt }))
+            .json(&body)
             .timeout(std::time::Duration::from_secs(10))
             .send()
             .await
-            .map_err(|e| AppError::Internal(format!("Failed to send prompt: {e}")))?;
+            .map_err(|e| AppError::HttpRequest {
+                context: "send initial prompt to OpenCode".into(),
+                source: e,
+            })?;
 
         if !resp.status().is_success() {
-            let status = resp.status();
+            let status = resp.status().as_u16();
             let body = resp.text().await.unwrap_or_default();
-            return Err(AppError::Internal(format!(
-                "Prompt send failed: HTTP {status} - {body}"
-            )));
+            return Err(AppError::OpenCodePromptFailed { status, body });
         }
 
+        tracing::info!("Initial prompt sent successfully");
         Ok(())
     }
 
     pub async fn stop_process(&self, session_id: &str) -> Result<(), AppError> {
         let mut procs = self.processes.lock().await;
         if let Some(mut child) = procs.remove(session_id) {
+            tracing::info!(session_id = session_id, "Stopping OpenCode process");
             let _ = child.kill().await;
+        } else {
+            tracing::debug!(session_id = session_id, "No running OpenCode process found");
         }
         Ok(())
     }

@@ -5,14 +5,15 @@
   import { Input } from '$lib/components/ui/input/index.js';
   import SourceSearch from './SourceSearch.svelte';
   import { searchJiraIssues, getJiraIssue, type JiraIssue } from '$lib/api/jira';
-  import { searchGitLabMRs, type GitLabMR } from '$lib/api/gitlab';
   import { createSession } from '$lib/api/sessions';
   import { push } from 'svelte-spa-router';
 
   let { open = $bindable(false) }: { open?: boolean } = $props();
 
   let scratchTitle = $state('');
+  let gitlabUrl = $state('');
   let creating = $state(false);
+  let gitlabError = $state('');
 
   async function handleCreateFromJira(issue: JiraIssue) {
     if (creating) return;
@@ -30,16 +31,28 @@
     }
   }
 
-  async function handleCreateFromGitLab(mr: GitLabMR) {
+  async function handleCreateFromGitLabUrl() {
     if (creating) return;
+    const url = gitlabUrl.trim();
+    if (!url) return;
+
+    // Extract MR info from URL: https://gitlab.com/group/project/-/merge_requests/42
+    const mrMatch = url.match(/merge_requests\/(\d+)/);
+    if (!mrMatch) {
+      gitlabError = 'Invalid GitLab MR URL. Expected format: https://gitlab.com/.../merge_requests/42';
+      return;
+    }
+
+    gitlabError = '';
     creating = true;
     try {
       const session = await createSession({
         source_type: 'gitlab',
-        source_ref: `!${mr.iid}`,
-        title: mr.title,
+        source_ref: url,
+        title: `MR !${mrMatch[1]}`,
       });
       open = false;
+      gitlabUrl = '';
       push(`/sessions/${session.id}`);
     } finally {
       creating = false;
@@ -63,7 +76,6 @@
   }
 
   async function handleJiraSearch(q: string): Promise<JiraIssue[]> {
-    // Detect JIRA key pattern or URL
     const keyMatch = q.match(/^([A-Z]+-\d+)$/);
     if (keyMatch) {
       try {
@@ -84,20 +96,6 @@
     }
     return searchJiraIssues(q);
   }
-
-  async function handleGitLabSearch(q: string): Promise<GitLabMR[]> {
-    // Detect !42 pattern
-    const mrMatch = q.match(/^!(\d+)$/);
-    if (mrMatch) {
-      return searchGitLabMRs(mrMatch[1]);
-    }
-    // Detect GitLab MR URL
-    const urlMatch = q.match(/merge_requests\/(\d+)/);
-    if (urlMatch) {
-      return searchGitLabMRs(urlMatch[1]);
-    }
-    return searchGitLabMRs(q);
-  }
 </script>
 
 <Dialog bind:open>
@@ -110,12 +108,6 @@
       <div>
         <span class="font-mono font-medium">{issue.key}</span>
         <span class="ml-2 text-muted-foreground">{issue.summary}</span>
-      </div>
-    {/snippet}
-    {#snippet gitlabItem(mr: GitLabMR)}
-      <div>
-        <span class="font-mono font-medium">!{mr.iid}</span>
-        <span class="ml-2 text-muted-foreground">{mr.title}</span>
       </div>
     {/snippet}
     <Tabs value="jira">
@@ -133,14 +125,19 @@
           renderItem={jiraItem}
         />
       </TabsContent>
-      <TabsContent value="gitlab" class="mt-4 space-y-2">
-        <p class="text-sm text-muted-foreground">Search for a GitLab merge request or paste !ID/URL.</p>
-        <SourceSearch
-          placeholder="Search MRs (e.g. !42)..."
-          onSearch={handleGitLabSearch}
-          onSelect={handleCreateFromGitLab}
-          renderItem={gitlabItem}
+      <TabsContent value="gitlab" class="mt-4 space-y-4">
+        <p class="text-sm text-muted-foreground">Paste a GitLab merge request URL.</p>
+        <Input
+          placeholder="https://gitlab.com/.../merge_requests/42"
+          bind:value={gitlabUrl}
+          onkeydown={(e: KeyboardEvent) => { if (e.key === 'Enter') handleCreateFromGitLabUrl(); }}
         />
+        {#if gitlabError}
+          <p class="text-sm text-destructive">{gitlabError}</p>
+        {/if}
+        <Button onclick={handleCreateFromGitLabUrl} disabled={creating || !gitlabUrl.trim()} class="w-full">
+          {creating ? 'Creating...' : 'Create Session'}
+        </Button>
       </TabsContent>
       <TabsContent value="scratch" class="mt-4 space-y-4">
         <p class="text-sm text-muted-foreground">Create a scratch session with an optional title.</p>

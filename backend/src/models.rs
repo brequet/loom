@@ -8,7 +8,7 @@ pub struct HealthResponse {
     pub version: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[ts(export)]
 pub enum SessionState {
     #[serde(rename = "provisioning")]

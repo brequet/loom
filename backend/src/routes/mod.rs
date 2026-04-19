@@ -4,10 +4,10 @@ pub mod jira;
 pub mod sessions;
 
 use axum::{
+    Router,
     extract::Request,
     response::{Html, IntoResponse, Response},
     routing::{get, post},
-    Router,
 };
 use reqwest::StatusCode;
 use rust_embed::Embed;
@@ -22,11 +22,17 @@ pub fn api_routes() -> Router<AppState> {
     Router::new()
         .route("/health", get(health::health))
         // Sessions
-        .route("/sessions", get(sessions::list_sessions).post(sessions::create_session))
+        .route(
+            "/sessions",
+            get(sessions::list_sessions).post(sessions::create_session),
+        )
         .route("/sessions/{id}", get(sessions::get_session))
         .route("/sessions/{id}/resume", post(sessions::resume_session))
         .route("/sessions/{id}/stop", post(sessions::stop_session))
-        .route("/sessions/{id}/terminate", post(sessions::terminate_session))
+        .route(
+            "/sessions/{id}/terminate",
+            post(sessions::terminate_session),
+        )
         // Jira
         .route("/jira/search", get(jira::search))
         .route("/jira/issues/{key}", get(jira::get_issue))

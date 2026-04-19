@@ -113,6 +113,7 @@ dependencies = [
 name = "backend"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "axum",
  "mime_guess",
  "reqwest",
@@ -120,6 +121,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sqlx",
+ "thiserror 2.0.18",
  "tokio",
  "tower-http",
  "tracing",
