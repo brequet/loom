@@ -188,6 +188,50 @@ impl OpenCodeService {
         Ok(())
     }
 
+    /// Discover the web UI path prefix used by OpenCode.
+    /// OpenCode's web frontend routes are `/{base64_project_path}/session/{id}`.
+    /// We query `GET /project/current` to learn the project path, then base64-encode it.
+    /// Falls back to base64-encoding the workspace path's root drive.
+    pub async fn get_web_path_prefix(&self, port: i64, workspace: &str) -> Result<String, AppError> {
+        use base64::Engine;
+
+        let url = format!("http://localhost:{port}/project/current");
+
+        let resp = self
+            .client
+            .get(&url)
+            .timeout(std::time::Duration::from_secs(5))
+            .send()
+            .await;
+
+        if let Ok(resp) = resp {
+            if resp.status().is_success() {
+                let body_text = resp.text().await.unwrap_or_default();
+                tracing::info!(body = %body_text, "OpenCode /project/current response");
+
+                if let Ok(body) = serde_json::from_str::<serde_json::Value>(&body_text) {
+                    let path = body["path"]
+                        .as_str()
+                        .or_else(|| body["root"].as_str())
+                        .or_else(|| body["dir"].as_str())
+                        .unwrap_or("");
+
+                    if !path.is_empty() {
+                        let prefix = base64::engine::general_purpose::STANDARD_NO_PAD.encode(path);
+                        tracing::info!(path = %path, prefix = %prefix, "Discovered OpenCode web UI prefix from API");
+                        return Ok(prefix);
+                    }
+                }
+            }
+        }
+
+        // Fallback: base64-encode the workspace path itself
+        // OpenCode typically resolves to the workspace dir or its git root
+        let prefix = base64::engine::general_purpose::STANDARD_NO_PAD.encode(workspace);
+        tracing::info!(workspace = %workspace, prefix = %prefix, "Using workspace path as OpenCode web UI prefix (fallback)");
+        Ok(prefix)
+    }
+
     pub async fn stop_process(&self, session_id: &str) -> Result<(), AppError> {
         let mut procs = self.processes.lock().await;
         if let Some(mut child) = procs.remove(session_id) {

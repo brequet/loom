@@ -5,8 +5,9 @@ use axum::{
 
 use crate::error::AppError;
 use crate::models::{
-    CreateSessionRequest, Session, SessionListResponse, SessionState,
+    CreateSessionRequest, Session, SessionListResponse, SessionState, SourceType,
 };
+use crate::services::prompt;
 use crate::state::AppState;
 
 pub async fn list_sessions(
@@ -75,31 +76,97 @@ pub async fn create_session(
                 "Step 3 succeeded: OpenCode session created"
             );
 
-            // 4. Send initial prompt if base prompt file exists
-            if state.config.base_prompt_path.exists() {
-                match tokio::fs::read_to_string(&state.config.base_prompt_path).await {
-                    Ok(prompt) => {
-                        if let Err(e) = state
-                            .opencode_service
-                            .send_initial_prompt(port, &oc_session_id, &prompt, &state.config.opencode_model)
-                            .await
-                        {
+            // Discover the web UI path prefix for constructing the correct URL
+            let workspace = session.workspace_path.as_deref().unwrap_or("");
+            let path_prefix = match state.opencode_service.get_web_path_prefix(port, workspace).await {
+                Ok(prefix) => Some(prefix),
+                Err(e) => {
+                    tracing::warn!(
+                        session_id = %session_id,
+                        error = %e,
+                        "Failed to discover OpenCode web UI prefix (non-fatal)"
+                    );
+                    None
+                }
+            };
+
+            // Persist the OpenCode session ID so the frontend can build the correct URL
+            if let Err(e) = state
+                .session_service
+                .update_opencode_session_id(
+                    &state.pool,
+                    &session_id,
+                    &oc_session_id,
+                    path_prefix.as_deref(),
+                )
+                .await
+            {
+                tracing::warn!(
+                    session_id = %session_id,
+                    error = %e,
+                    "Failed to persist OpenCode session ID (non-fatal)"
+                );
+            }
+
+            // 4. Build and send initial prompt with session context
+            let jira_issue = if matches!(session.source_type, SourceType::Jira) {
+                if let Some(ref key) = session.source_ref {
+                    match state.jira_service.get_issue(&state.config, key).await {
+                        Ok(issue) => issue,
+                        Err(e) => {
                             tracing::warn!(
                                 session_id = %session_id,
                                 error = %e,
-                                "Step 4 warning: failed to send initial prompt (non-fatal)"
+                                "Failed to fetch Jira issue for prompt (non-fatal)"
                             );
+                            None
                         }
                     }
-                    Err(e) => {
-                        tracing::warn!(
-                            session_id = %session_id,
-                            path = %state.config.base_prompt_path.display(),
-                            error = %e,
-                            "Step 4 warning: failed to read base prompt file (non-fatal)"
-                        );
-                    }
+                } else {
+                    None
                 }
+            } else {
+                None
+            };
+
+            let gitlab_mr = if matches!(session.source_type, SourceType::Gitlab) {
+                if let Some(ref url) = session.source_ref {
+                    match state.gitlab_service.get_merge_request_by_url(&state.config, url).await {
+                        Ok(mr) => mr,
+                        Err(e) => {
+                            tracing::warn!(
+                                session_id = %session_id,
+                                error = %e,
+                                "Failed to fetch GitLab MR for prompt (non-fatal)"
+                            );
+                            None
+                        }
+                    }
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+
+            let initial_prompt = prompt::build_initial_prompt(
+                &state.config,
+                &session,
+                jira_issue.as_ref(),
+                gitlab_mr.as_ref(),
+            )
+            .await;
+
+            if let Err(e) = state
+                .opencode_service
+                .send_initial_prompt(port, &oc_session_id, &initial_prompt, &state.config.opencode_model)
+                .await
+            {
+                tracing::warn!(
+                    session_id = %session_id,
+                    error = %e,
+                    "Step 4 warning: failed to send initial prompt (non-fatal)"
+                );
             }
         }
         Err(e) => {

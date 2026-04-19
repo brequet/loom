@@ -1,22 +1,11 @@
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Path, State},
     Json,
 };
 
 use crate::error::AppError;
-use crate::models::{JiraIssue, SearchQuery};
+use crate::models::JiraIssue;
 use crate::state::AppState;
-
-pub async fn search(
-    State(state): State<AppState>,
-    Query(query): Query<SearchQuery>,
-) -> Result<Json<Vec<JiraIssue>>, AppError> {
-    let issues = state
-        .jira_service
-        .search_issues(&state.config, &query.q)
-        .await?;
-    Ok(Json(issues))
-}
 
 pub async fn get_issue(
     State(state): State<AppState>,

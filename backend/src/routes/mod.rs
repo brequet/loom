@@ -34,7 +34,6 @@ pub fn api_routes() -> Router<AppState> {
             post(sessions::terminate_session),
         )
         // Jira
-        .route("/jira/search", get(jira::search))
         .route("/jira/issues/{key}", get(jira::get_issue))
         // GitLab
         .route("/gitlab/search", get(gitlab::search))

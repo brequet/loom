@@ -14,7 +14,7 @@ impl SessionService {
 
     pub async fn list_sessions(&self, pool: &SqlitePool) -> Result<Vec<Session>, AppError> {
         let rows = sqlx::query_as::<_, SessionRow>(
-            "SELECT id, title, source_type, source_ref, state, opencode_port, workspace_path, project_id, created_at, updated_at FROM sessions WHERE state != 'terminated' ORDER BY updated_at DESC",
+            "SELECT id, title, source_type, source_ref, state, opencode_port, opencode_session_id, opencode_path_prefix, workspace_path, project_id, created_at, updated_at FROM sessions WHERE state != 'terminated' ORDER BY updated_at DESC",
         )
         .fetch_all(pool)
         .await?;
@@ -28,7 +28,7 @@ impl SessionService {
         id: &str,
     ) -> Result<Option<Session>, AppError> {
         let row = sqlx::query_as::<_, SessionRow>(
-            "SELECT id, title, source_type, source_ref, state, opencode_port, workspace_path, project_id, created_at, updated_at FROM sessions WHERE id = ?",
+            "SELECT id, title, source_type, source_ref, state, opencode_port, opencode_session_id, opencode_path_prefix, workspace_path, project_id, created_at, updated_at FROM sessions WHERE id = ?",
         )
         .bind(id)
         .fetch_optional(pool)
@@ -93,6 +93,24 @@ impl SessionService {
         self.get_session(pool, &id)
             .await?
             .ok_or_else(|| AppError::BadRequest("Failed to fetch created session".into()))
+    }
+
+    pub async fn update_opencode_session_id(
+        &self,
+        pool: &SqlitePool,
+        id: &str,
+        opencode_session_id: &str,
+        opencode_path_prefix: Option<&str>,
+    ) -> Result<(), AppError> {
+        sqlx::query("UPDATE sessions SET opencode_session_id = ?, opencode_path_prefix = ?, updated_at = datetime('now') WHERE id = ?")
+            .bind(opencode_session_id)
+            .bind(opencode_path_prefix)
+            .bind(id)
+            .execute(pool)
+            .await?;
+
+        tracing::info!(session_id = %id, opencode_session_id = %opencode_session_id, "OpenCode session ID saved");
+        Ok(())
     }
 
     pub async fn update_state(

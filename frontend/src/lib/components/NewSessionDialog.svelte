@@ -3,8 +3,7 @@
   import { Tabs, TabsContent, TabsList, TabsTrigger } from '$lib/components/ui/tabs/index.js';
   import { Button } from '$lib/components/ui/button/index.js';
   import { Input } from '$lib/components/ui/input/index.js';
-  import SourceSearch from './SourceSearch.svelte';
-  import { searchJiraIssues, getJiraIssue, type JiraIssue } from '$lib/api/jira';
+  import { getJiraIssue } from '$lib/api/jira';
   import { createSession } from '$lib/api/sessions';
   import { push } from 'svelte-spa-router';
 
@@ -12,20 +11,49 @@
 
   let scratchTitle = $state('');
   let gitlabUrl = $state('');
+  let jiraInput = $state('');
   let creating = $state(false);
   let gitlabError = $state('');
+  let jiraError = $state('');
 
-  async function handleCreateFromJira(issue: JiraIssue) {
+  /**
+   * Parse a Jira issue key from user input.
+   * Accepts either a bare key (e.g. "SAM-398") or a full Jira URL
+   * (e.g. "https://team.atlassian.net/browse/SAM-398").
+   */
+  function parseJiraKey(input: string): string | null {
+    const trimmed = input.trim();
+    const keyMatch = trimmed.match(/^([A-Z]+-\d+)$/i);
+    if (keyMatch) return keyMatch[1].toUpperCase();
+
+    const urlMatch = trimmed.match(/browse\/([A-Z]+-\d+)/i);
+    if (urlMatch) return urlMatch[1].toUpperCase();
+
+    return null;
+  }
+
+  async function handleCreateFromJira() {
     if (creating) return;
+    const key = parseJiraKey(jiraInput);
+    if (!key) {
+      jiraError = 'Enter a Jira issue key (e.g. SAM-398) or full URL (e.g. https://team.atlassian.net/browse/SAM-398)';
+      return;
+    }
+
+    jiraError = '';
     creating = true;
     try {
+      const issue = await getJiraIssue(key);
       const session = await createSession({
         source_type: 'jira',
         source_ref: issue.key,
         title: `${issue.key}: ${issue.summary}`,
       });
       open = false;
-      push(`/sessions/${session.id}`);
+      jiraInput = '';
+      push(`/sessions/${session.id}?autoOpen=1`);
+    } catch (e) {
+      jiraError = e instanceof Error ? e.message : 'Failed to fetch Jira issue';
     } finally {
       creating = false;
     }
@@ -36,7 +64,6 @@
     const url = gitlabUrl.trim();
     if (!url) return;
 
-    // Extract MR info from URL: https://gitlab.com/group/project/-/merge_requests/42
     const mrMatch = url.match(/merge_requests\/(\d+)/);
     if (!mrMatch) {
       gitlabError = 'Invalid GitLab MR URL. Expected format: https://gitlab.com/.../merge_requests/42';
@@ -53,7 +80,7 @@
       });
       open = false;
       gitlabUrl = '';
-      push(`/sessions/${session.id}`);
+      push(`/sessions/${session.id}?autoOpen=1`);
     } finally {
       creating = false;
     }
@@ -69,32 +96,10 @@
       });
       open = false;
       scratchTitle = '';
-      push(`/sessions/${session.id}`);
+      push(`/sessions/${session.id}?autoOpen=1`);
     } finally {
       creating = false;
     }
-  }
-
-  async function handleJiraSearch(q: string): Promise<JiraIssue[]> {
-    const keyMatch = q.match(/^([A-Z]+-\d+)$/);
-    if (keyMatch) {
-      try {
-        const issue = await getJiraIssue(keyMatch[1]);
-        return [issue];
-      } catch {
-        return [];
-      }
-    }
-    const urlMatch = q.match(/browse\/([A-Z]+-\d+)/);
-    if (urlMatch) {
-      try {
-        const issue = await getJiraIssue(urlMatch[1]);
-        return [issue];
-      } catch {
-        return [];
-      }
-    }
-    return searchJiraIssues(q);
   }
 </script>
 
@@ -104,26 +109,25 @@
       <DialogTitle>New Session</DialogTitle>
       <DialogDescription>Create a session from a Jira issue, GitLab MR, or start from scratch.</DialogDescription>
     </DialogHeader>
-    {#snippet jiraItem(issue: JiraIssue)}
-      <div>
-        <span class="font-mono font-medium">{issue.key}</span>
-        <span class="ml-2 text-muted-foreground">{issue.summary}</span>
-      </div>
-    {/snippet}
     <Tabs value="jira">
       <TabsList class="w-full">
         <TabsTrigger value="jira" class="flex-1">Jira</TabsTrigger>
         <TabsTrigger value="gitlab" class="flex-1">GitLab</TabsTrigger>
         <TabsTrigger value="scratch" class="flex-1">Scratch</TabsTrigger>
       </TabsList>
-      <TabsContent value="jira" class="mt-4 space-y-2">
-        <p class="text-sm text-muted-foreground">Search for a Jira issue or paste a key/URL.</p>
-        <SourceSearch
-          placeholder="Search issues (e.g. PROJ-123)..."
-          onSearch={handleJiraSearch}
-          onSelect={handleCreateFromJira}
-          renderItem={jiraItem}
+      <TabsContent value="jira" class="mt-4 space-y-4">
+        <p class="text-sm text-muted-foreground">Enter a Jira issue key or paste a full URL.</p>
+        <Input
+          placeholder="SAM-398 or https://team.atlassian.net/browse/SAM-398"
+          bind:value={jiraInput}
+          onkeydown={(e: KeyboardEvent) => { if (e.key === 'Enter') handleCreateFromJira(); }}
         />
+        {#if jiraError}
+          <p class="text-sm text-destructive">{jiraError}</p>
+        {/if}
+        <Button onclick={handleCreateFromJira} disabled={creating || !jiraInput.trim()} class="w-full">
+          {creating ? 'Creating...' : 'Create Session'}
+        </Button>
       </TabsContent>
       <TabsContent value="gitlab" class="mt-4 space-y-4">
         <p class="text-sm text-muted-foreground">Paste a GitLab merge request URL.</p>

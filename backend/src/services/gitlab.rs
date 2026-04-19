@@ -101,6 +101,90 @@ impl GitLabService {
         })?;
         Ok(Some(mr))
     }
+    /// Fetch a merge request from its full web URL.
+    /// URL format: https://gitlab.com/group/subgroup/project/-/merge_requests/42
+    pub async fn get_merge_request_by_url(
+        &self,
+        config: &Config,
+        url: &str,
+    ) -> Result<Option<GitLabMergeRequest>, AppError> {
+        if !config.gitlab_configured() {
+            return Ok(None);
+        }
+
+        // Extract project path and MR iid from the URL
+        // Pattern: {base}/group/project/-/merge_requests/{iid}
+        let base_url = config.gitlab_base_url.as_deref().unwrap();
+        let token = config.gitlab_private_token.as_deref().unwrap();
+
+        // Parse project path and MR iid from URL
+        // URL: https://gitlab.com/group/subgroup/project/-/merge_requests/42
+        let mr_marker = "/-/merge_requests/";
+        let Some(marker_pos) = url.find(mr_marker) else {
+            tracing::warn!(url = url, "Could not parse GitLab MR URL: no merge_requests marker");
+            return Ok(None);
+        };
+
+        let iid_str = &url[marker_pos + mr_marker.len()..];
+        let iid: i64 = iid_str
+            .split(|c: char| !c.is_ascii_digit())
+            .next()
+            .unwrap_or("")
+            .parse()
+            .unwrap_or(0);
+
+        if iid == 0 {
+            return Ok(None);
+        }
+
+        // Extract project path: everything between the host and /-/
+        // Find the start of the path after the host
+        let path_start = if let Some(stripped) = url.strip_prefix(base_url) {
+            stripped
+        } else {
+            // Fallback: find /-/ and take everything from the third slash
+            let after_scheme = url.find("://").map(|i| i + 3).unwrap_or(0);
+            let host_end = url[after_scheme..].find('/').map(|i| after_scheme + i).unwrap_or(after_scheme);
+            &url[host_end..]
+        };
+
+        let project_path = path_start[..path_start.find(mr_marker).unwrap_or(path_start.len())]
+            .trim_start_matches('/');
+
+        if project_path.is_empty() {
+            return Ok(None);
+        }
+
+        let api_url = format!(
+            "{base_url}/api/v4/projects/{}/merge_requests/{iid}",
+            urlencoding(project_path)
+        );
+
+        let resp = self
+            .client
+            .get(&api_url)
+            .header("PRIVATE-TOKEN", token)
+            .timeout(std::time::Duration::from_secs(10))
+            .send()
+            .await
+            .map_err(|e| AppError::HttpRequest {
+                context: format!("GitLab get MR from URL {url}"),
+                source: e,
+            })?;
+
+        if !resp.status().is_success() {
+            let status = resp.status().as_u16();
+            let body = resp.text().await.unwrap_or_default();
+            tracing::warn!(status = status, body = %body, "GitLab get MR by URL failed");
+            return Ok(None);
+        }
+
+        let mr: GitLabMergeRequest = resp.json().await.map_err(|e| AppError::ResponseParse {
+            service: "GitLab".into(),
+            detail: format!("Failed to parse MR response: {e}"),
+        })?;
+        Ok(Some(mr))
+    }
 }
 
 fn urlencoding(s: &str) -> String {

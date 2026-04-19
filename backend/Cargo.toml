@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 anyhow = "1.0.102"
 axum = "0.8.9"
+base64 = "0.22"
 mime_guess = "2.0.5"
 reqwest = { version = "0.13.2", features = ["json"] }
 rust-embed = "8.11.0"

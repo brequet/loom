@@ -7,8 +7,5 @@ export type JiraIssue = {
   status: string;
 };
 
-export const searchJiraIssues = (q: string) =>
-  get<JiraIssue[]>(`/jira/search?q=${encodeURIComponent(q)}`);
-
 export const getJiraIssue = (key: string) =>
   get<JiraIssue>(`/jira/issues/${key}`);

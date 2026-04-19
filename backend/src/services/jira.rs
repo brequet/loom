@@ -14,82 +14,6 @@ impl JiraService {
         }
     }
 
-    pub async fn search_issues(
-        &self,
-        config: &Config,
-        query: &str,
-    ) -> Result<Vec<JiraIssue>, AppError> {
-        if !config.jira_configured() {
-            return Ok(vec![]);
-        }
-
-        let base_url = config.jira_base_url.as_deref().unwrap();
-        let email = config.jira_email.as_deref().unwrap();
-        let token = config.jira_api_token.as_deref().unwrap();
-
-        // Use the issue picker endpoint — designed for autocomplete suggestions.
-        // It searches across issue keys, summaries, and history.
-        let url = format!(
-            "{base_url}/rest/api/3/issue/picker?query={}&showSubTasks=true",
-            urlencoding(query)
-        );
-
-        let resp = self
-            .client
-            .get(&url)
-            .basic_auth(email, Some(token))
-            .header("Accept", "application/json")
-            .timeout(std::time::Duration::from_secs(10))
-            .send()
-            .await
-            .map_err(|e| AppError::HttpRequest {
-                context: "Jira issue picker search".into(),
-                source: e,
-            })?;
-
-        if !resp.status().is_success() {
-            let status = resp.status().as_u16();
-            let body = resp.text().await.unwrap_or_default();
-            tracing::error!(status = status, body = %body, "Jira search failed");
-            return Err(AppError::JiraApi { status, body });
-        }
-
-        let body: serde_json::Value = resp.json().await.map_err(|e| AppError::ResponseParse {
-            service: "Jira".into(),
-            detail: format!("Failed to parse search response: {e}"),
-        })?;
-        let mut issues = Vec::new();
-        let mut seen_keys = std::collections::HashSet::new();
-
-        if let Some(sections) = body["sections"].as_array() {
-            for section in sections {
-                if let Some(section_issues) = section["issues"].as_array() {
-                    for issue in section_issues {
-                        let key = match issue["key"].as_str() {
-                            Some(k) => k.to_string(),
-                            None => continue,
-                        };
-                        if !seen_keys.insert(key.clone()) {
-                            continue; // deduplicate across sections
-                        }
-                        let summary = issue["summaryText"]
-                            .as_str()
-                            .unwrap_or("")
-                            .to_string();
-                        issues.push(JiraIssue {
-                            key,
-                            summary,
-                            description: None, // picker doesn't return descriptions
-                            status: String::new(),
-                        });
-                    }
-                }
-            }
-        }
-
-        Ok(issues)
-    }
-
     pub async fn get_issue(
         &self,
         config: &Config,
@@ -144,17 +68,6 @@ impl JiraService {
             status,
         }))
     }
-}
-
-fn urlencoding(s: &str) -> String {
-    s.chars()
-        .map(|c| match c {
-            ' ' => "%20".to_string(),
-            '"' => "%22".to_string(),
-            _ if c.is_ascii_alphanumeric() || "-._~".contains(c) => c.to_string(),
-            _ => format!("%{:02X}", c as u32),
-        })
-        .collect()
 }
 
 /// Extract plain text from a Jira description field.

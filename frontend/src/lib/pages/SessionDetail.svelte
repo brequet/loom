@@ -14,9 +14,28 @@
   let loading = $state(true);
   let error = $state<string | null>(null);
   let actionLoading = $state(false);
+  let autoOpened = $state(false);
+
+  // Check if we should auto-open (set by NewSessionDialog after creation)
+  // svelte-spa-router uses hash-based routing, so query params are in the hash fragment
+  const shouldAutoOpen = window.location.hash.includes('autoOpen=1');
 
   function formatDate(iso: string): string {
     return new Date(iso).toLocaleString();
+  }
+
+  function getOpenCodeUrl(s: Session): string | null {
+    if (!s.opencode_port) return null;
+    const base = `http://localhost:${s.opencode_port}`;
+    if (s.opencode_path_prefix && s.opencode_session_id) {
+      return `${base}/${s.opencode_path_prefix}/session/${s.opencode_session_id}`;
+    }
+    // Fallback: even without prefix, try to navigate to the session
+    // OpenCode's web UI will redirect from the base URL to the correct prefix
+    if (s.opencode_session_id) {
+      return `${base}/session/${s.opencode_session_id}`;
+    }
+    return base;
   }
 
   async function fetchSession() {
@@ -41,6 +60,18 @@
       interval = setInterval(fetchSession, 3000);
     }
   });
+
+  // Auto-open OpenCode tab when session first becomes running (only after fresh creation)
+  $effect(() => {
+    if (shouldAutoOpen && session && session.state === 'running' && !autoOpened) {
+      const url = getOpenCodeUrl(session);
+      if (url) {
+        autoOpened = true;
+        window.open(url, '_blank');
+      }
+    }
+  });
+
   onDestroy(() => clearInterval(interval));
 
   async function handleStop() {
@@ -123,12 +154,16 @@
 
     <div class="flex gap-3">
       {#if session.state === 'running'}
-        <Button
-          onclick={() => window.open(`http://localhost:${session!.opencode_port}`, '_blank')}
-          disabled={!session.opencode_port}
-        >
-          Open OpenCode
-        </Button>
+        {#if getOpenCodeUrl(session)}
+          <a
+            href={getOpenCodeUrl(session)}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2"
+          >
+            Open OpenCode
+          </a>
+        {/if}
         <Button variant="outline" onclick={handleStop} disabled={actionLoading}>
           {actionLoading ? 'Stopping...' : 'Stop'}
         </Button>
