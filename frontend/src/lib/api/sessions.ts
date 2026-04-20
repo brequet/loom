@@ -9,6 +9,7 @@ export const createSession = (data: {
   project_id?: string;
   title?: string;
   model?: string;
+  custom_instructions?: string;
 }) => post<Session>('/sessions', data);
 export const resumeSession = (id: string) => post<Session>(`/sessions/${id}/resume`);
 export const stopSession = (id: string) => post<Session>(`/sessions/${id}/stop`);

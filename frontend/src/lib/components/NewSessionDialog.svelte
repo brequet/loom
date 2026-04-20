@@ -22,6 +22,7 @@
   let gitlabUrl = $state('');
   let jiraInput = $state('');
   let selectedModel = $state<string>(MODELS[0].value);
+  let customInstructions = $state('');
   let creating = $state(false);
   let gitlabError = $state('');
   let jiraError = $state('');
@@ -58,6 +59,7 @@
         source_ref: issue.key,
         title: `${issue.key}: ${issue.summary}`,
         model: selectedModel,
+        custom_instructions: customInstructions.trim() || undefined,
       });
       open = false;
       jiraInput = '';
@@ -88,6 +90,7 @@
         source_ref: url,
         title: `MR !${mrMatch[1]}`,
         model: selectedModel,
+        custom_instructions: customInstructions.trim() || undefined,
       });
       open = false;
       gitlabUrl = '';
@@ -105,6 +108,7 @@
         source_type: 'scratch',
         title: scratchTitle.trim() || 'Scratch session',
         model: selectedModel,
+        custom_instructions: customInstructions.trim() || undefined,
       });
       open = false;
       scratchTitle = '';
@@ -132,6 +136,17 @@
           {/each}
         </SelectContent>
       </Select>
+    </div>
+
+    <div class="space-y-2">
+      <Label for="custom-instructions">Custom instructions</Label>
+      <textarea
+        id="custom-instructions"
+        bind:value={customInstructions}
+        placeholder="Additional instructions for the agent (optional)"
+        rows="3"
+        class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-y"
+      ></textarea>
     </div>
 
     <Tabs value="jira">

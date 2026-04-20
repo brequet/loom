@@ -33,7 +33,15 @@ pub async fn build_initial_prompt(
     // 3. Repository setup instructions
     parts.push(build_repo_section(config, session, jira_issue));
 
-    // 4. Behavioral guidelines
+    // 4. Custom user instructions (if provided)
+    if let Some(ref instructions) = session.custom_instructions {
+        let trimmed = instructions.trim();
+        if !trimmed.is_empty() {
+            parts.push(format!("## User Instructions\n\n{trimmed}"));
+        }
+    }
+
+    // 5. Behavioral guidelines
     parts.push(
         "## Guidelines\n\n\
          - Be autonomous when you are confident about what to do\n\

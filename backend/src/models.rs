@@ -88,19 +88,9 @@ pub struct Session {
     pub workspace_path: Option<String>,
     pub project_id: Option<String>,
     pub model: String,
+    pub custom_instructions: Option<String>,
     pub created_at: String,
     pub updated_at: String,
-}
-
-#[allow(dead_code)]
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export)]
-pub struct Project {
-    pub id: String,
-    pub name: String,
-    pub repo_url: String,
-    pub bare_clone_path: Option<String>,
-    pub created_at: String,
 }
 
 // -- Raw DB row types for sqlx::FromRow --
@@ -118,6 +108,7 @@ pub struct SessionRow {
     pub workspace_path: Option<String>,
     pub project_id: Option<String>,
     pub model: String,
+    pub custom_instructions: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -136,10 +127,22 @@ impl From<SessionRow> for Session {
             workspace_path: r.workspace_path,
             project_id: r.project_id,
             model: r.model,
+            custom_instructions: r.custom_instructions,
             created_at: r.created_at,
             updated_at: r.updated_at,
         }
     }
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct Project {
+    pub id: String,
+    pub name: String,
+    pub repo_url: String,
+    pub bare_clone_path: Option<String>,
+    pub created_at: String,
 }
 
 #[allow(dead_code)]
@@ -174,6 +177,7 @@ pub struct CreateSessionRequest {
     pub project_id: Option<String>,
     pub title: Option<String>,
     pub model: Option<String>,
+    pub custom_instructions: Option<String>,
 }
 
 #[derive(Debug, Serialize, TS)]
