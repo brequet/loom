@@ -42,7 +42,7 @@ impl OpenCodeService {
         );
 
         let child = Command::new(&config.opencode_bin)
-            .arg("web")
+            .arg("serve")
             .arg("--port")
             .arg(port.to_string())
             .arg("--hostname")
