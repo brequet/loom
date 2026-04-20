@@ -91,7 +91,7 @@ pub struct Session {
     pub updated_at: String,
 }
 
-#[expect(dead_code)]
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
 pub struct Project {
@@ -139,7 +139,7 @@ impl From<SessionRow> for Session {
     }
 }
 
-#[expect(dead_code)]
+#[allow(dead_code)]
 #[derive(Debug, sqlx::FromRow)]
 pub struct ProjectRow {
     pub id: String,
@@ -185,6 +185,8 @@ pub struct JiraIssue {
     pub summary: String,
     pub description: Option<String>,
     pub status: String,
+    pub issue_type: Option<String>,
+    pub components: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]

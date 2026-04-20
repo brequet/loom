@@ -57,12 +57,23 @@ impl JiraService {
         let summary = fields["summary"].as_str().unwrap_or("").to_string();
         let description = extract_description(&fields["description"]);
         let status = fields["status"]["name"].as_str().unwrap_or("").to_string();
+        let issue_type = fields["issuetype"]["name"].as_str().map(String::from);
+        let components = fields["components"]
+            .as_array()
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|c| c["name"].as_str().map(String::from))
+                    .collect()
+            })
+            .unwrap_or_default();
 
         Ok(Some(JiraIssue {
             key,
             summary,
             description,
             status,
+            issue_type,
+            components,
         }))
     }
 }
