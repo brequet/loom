@@ -176,8 +176,29 @@ impl SessionService {
         if let Some(ref ws) = session.workspace_path {
             let path = std::path::PathBuf::from(ws);
             if path.exists() {
-                if let Err(e) = tokio::fs::remove_dir_all(&path).await {
-                    tracing::warn!(session_id = %id, path = %path.display(), error = %e, "Failed to cleanup workspace");
+                // Retry workspace cleanup -- files may still be locked briefly after process kill
+                let mut removed = false;
+                for attempt in 1..=5 {
+                    match tokio::fs::remove_dir_all(&path).await {
+                        Ok(()) => {
+                            removed = true;
+                            break;
+                        }
+                        Err(e) => {
+                            tracing::warn!(
+                                session_id = %id, path = %path.display(),
+                                attempt = attempt, error = %e,
+                                "Failed to cleanup workspace, retrying..."
+                            );
+                            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                        }
+                    }
+                }
+                if !removed {
+                    tracing::error!(
+                        session_id = %id, path = %path.display(),
+                        "Failed to cleanup workspace after 5 attempts"
+                    );
                 }
             }
         }

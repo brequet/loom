@@ -236,7 +236,29 @@ impl OpenCodeService {
         let mut procs = self.processes.lock().await;
         if let Some(mut child) = procs.remove(session_id) {
             tracing::info!(session_id = session_id, "Stopping OpenCode process");
-            let _ = child.kill().await;
+
+            // On Windows, child.kill() only terminates the direct process.
+            // Use taskkill /F /T to kill the entire process tree.
+            if let Some(pid) = child.id() {
+                #[cfg(target_os = "windows")]
+                {
+                    tracing::info!(session_id = session_id, pid = pid, "Killing process tree (Windows)");
+                    let _ = tokio::process::Command::new("taskkill")
+                        .args(["/F", "/T", "/PID", &pid.to_string()])
+                        .output()
+                        .await;
+                }
+                #[cfg(not(target_os = "windows"))]
+                {
+                    let _ = pid; // suppress unused warning
+                    let _ = child.kill().await;
+                }
+            } else {
+                let _ = child.kill().await;
+            }
+
+            // Wait for the process to fully exit
+            let _ = child.wait().await;
         } else {
             tracing::debug!(session_id = session_id, "No running OpenCode process found");
         }
