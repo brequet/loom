@@ -70,6 +70,5 @@ fn env_or(key: &str, default: &str) -> String {
 fn dirs_home() -> PathBuf {
     std::env::var("USERPROFILE")
         .or_else(|_| std::env::var("HOME"))
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from("."))
+        .map_or_else(|_| PathBuf::from("."), PathBuf::from)
 }

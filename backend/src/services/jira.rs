@@ -56,10 +56,7 @@ impl JiraService {
         let fields = &body["fields"];
         let summary = fields["summary"].as_str().unwrap_or("").to_string();
         let description = extract_description(&fields["description"]);
-        let status = fields["status"]["name"]
-            .as_str()
-            .unwrap_or("")
-            .to_string();
+        let status = fields["status"]["name"].as_str().unwrap_or("").to_string();
 
         Ok(Some(JiraIssue {
             key,

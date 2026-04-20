@@ -51,13 +51,15 @@ impl GitLabService {
             return Err(AppError::GitLabApi { status, body });
         }
 
-        let mrs: Vec<GitLabMergeRequest> = resp.json().await.map_err(|e| AppError::ResponseParse {
-            service: "GitLab".into(),
-            detail: format!("Failed to parse MR search response: {e}"),
-        })?;
+        let mrs: Vec<GitLabMergeRequest> =
+            resp.json().await.map_err(|e| AppError::ResponseParse {
+                service: "GitLab".into(),
+                detail: format!("Failed to parse MR search response: {e}"),
+            })?;
         Ok(mrs)
     }
 
+    #[expect(dead_code)]
     pub async fn get_merge_request(
         &self,
         config: &Config,
@@ -102,7 +104,7 @@ impl GitLabService {
         Ok(Some(mr))
     }
     /// Fetch a merge request from its full web URL.
-    /// URL format: https://gitlab.com/group/subgroup/project/-/merge_requests/42
+    /// URL format: `<https://gitlab.com/group/subgroup/project/-/merge_requests/42>`
     pub async fn get_merge_request_by_url(
         &self,
         config: &Config,
@@ -121,7 +123,10 @@ impl GitLabService {
         // URL: https://gitlab.com/group/subgroup/project/-/merge_requests/42
         let mr_marker = "/-/merge_requests/";
         let Some(marker_pos) = url.find(mr_marker) else {
-            tracing::warn!(url = url, "Could not parse GitLab MR URL: no merge_requests marker");
+            tracing::warn!(
+                url = url,
+                "Could not parse GitLab MR URL: no merge_requests marker"
+            );
             return Ok(None);
         };
 
@@ -143,8 +148,10 @@ impl GitLabService {
             stripped
         } else {
             // Fallback: find /-/ and take everything from the third slash
-            let after_scheme = url.find("://").map(|i| i + 3).unwrap_or(0);
-            let host_end = url[after_scheme..].find('/').map(|i| after_scheme + i).unwrap_or(after_scheme);
+            let after_scheme = url.find("://").map_or(0, |i| i + 3);
+            let host_end = url[after_scheme..]
+                .find('/')
+                .map_or(after_scheme, |i| after_scheme + i);
             &url[host_end..]
         };
 

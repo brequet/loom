@@ -21,11 +21,7 @@ impl OpenCodeService {
         }
     }
 
-    pub async fn spawn_session(
-        &self,
-        config: &Config,
-        session: &Session,
-    ) -> Result<(), AppError> {
+    pub async fn spawn_session(&self, config: &Config, session: &Session) -> Result<(), AppError> {
         let workspace = session
             .workspace_path
             .as_deref()
@@ -59,8 +55,8 @@ impl OpenCodeService {
         Ok(())
     }
 
-    /// Create an OpenCode session via the REST API.
-    /// API: POST /session  body: { title?: string }  returns: Session { id, ... }
+    /// Create an `OpenCode` session via the REST API.
+    /// API: POST /session  body: `{ title?: string }`  returns: `Session { id, ... }`
     pub async fn create_opencode_session(
         &self,
         port: i64,
@@ -134,8 +130,8 @@ impl OpenCodeService {
         })
     }
 
-    /// Send initial prompt to OpenCode session asynchronously.
-    /// API: POST /session/:id/prompt_async
+    /// Send initial prompt to `OpenCode` session asynchronously.
+    /// API: `POST /session/:id/prompt_async`
     /// body: { parts: [{ type: "text", text: "..." }], model?: { providerID, modelID } }
     /// Returns 204 No Content on success.
     pub async fn send_initial_prompt(
@@ -188,11 +184,15 @@ impl OpenCodeService {
         Ok(())
     }
 
-    /// Discover the web UI path prefix used by OpenCode.
-    /// OpenCode's web frontend routes are `/{base64_project_path}/session/{id}`.
+    /// Discover the web UI path prefix used by `OpenCode`.
+    /// `OpenCode`'s web frontend routes are `/{base64_project_path}/session/{id}`.
     /// We query `GET /project/current` to learn the project path, then base64-encode it.
     /// Falls back to base64-encoding the workspace path's root drive.
-    pub async fn get_web_path_prefix(&self, port: i64, workspace: &str) -> Result<String, AppError> {
+    pub async fn get_web_path_prefix(
+        &self,
+        port: i64,
+        workspace: &str,
+    ) -> Result<String, AppError> {
         use base64::Engine;
 
         let url = format!("http://localhost:{port}/project/current");
@@ -204,23 +204,23 @@ impl OpenCodeService {
             .send()
             .await;
 
-        if let Ok(resp) = resp {
-            if resp.status().is_success() {
-                let body_text = resp.text().await.unwrap_or_default();
-                tracing::info!(body = %body_text, "OpenCode /project/current response");
+        if let Ok(resp) = resp
+            && resp.status().is_success()
+        {
+            let body_text = resp.text().await.unwrap_or_default();
+            tracing::info!(body = %body_text, "OpenCode /project/current response");
 
-                if let Ok(body) = serde_json::from_str::<serde_json::Value>(&body_text) {
-                    let path = body["path"]
-                        .as_str()
-                        .or_else(|| body["root"].as_str())
-                        .or_else(|| body["dir"].as_str())
-                        .unwrap_or("");
+            if let Ok(body) = serde_json::from_str::<serde_json::Value>(&body_text) {
+                let path = body["path"]
+                    .as_str()
+                    .or_else(|| body["root"].as_str())
+                    .or_else(|| body["dir"].as_str())
+                    .unwrap_or("");
 
-                    if !path.is_empty() {
-                        let prefix = base64::engine::general_purpose::STANDARD_NO_PAD.encode(path);
-                        tracing::info!(path = %path, prefix = %prefix, "Discovered OpenCode web UI prefix from API");
-                        return Ok(prefix);
-                    }
+                if !path.is_empty() {
+                    let prefix = base64::engine::general_purpose::STANDARD_NO_PAD.encode(path);
+                    tracing::info!(path = %path, prefix = %prefix, "Discovered OpenCode web UI prefix from API");
+                    return Ok(prefix);
                 }
             }
         }
@@ -242,7 +242,11 @@ impl OpenCodeService {
             if let Some(pid) = child.id() {
                 #[cfg(target_os = "windows")]
                 {
-                    tracing::info!(session_id = session_id, pid = pid, "Killing process tree (Windows)");
+                    tracing::info!(
+                        session_id = session_id,
+                        pid = pid,
+                        "Killing process tree (Windows)"
+                    );
                     let _ = tokio::process::Command::new("taskkill")
                         .args(["/F", "/T", "/PID", &pid.to_string()])
                         .output()

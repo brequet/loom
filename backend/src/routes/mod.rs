@@ -45,9 +45,9 @@ pub async fn dev_proxy(req: Request) -> Response {
     let query = req
         .uri()
         .query()
-        .map(|q| format!("?{}", q))
+        .map(|q| format!("?{q}"))
         .unwrap_or_default();
-    let url = format!("http://localhost:5173{}{}", path, query);
+    let url = format!("http://localhost:5173{path}{query}");
 
     match reqwest::get(&url).await {
         Ok(resp) => {
@@ -57,11 +57,11 @@ pub async fn dev_proxy(req: Request) -> Response {
             let body = resp.bytes().await.unwrap_or_default();
 
             let mut response = (status, body).into_response();
-            for (key, value) in headers.iter() {
-                if let Ok(name) = axum::http::HeaderName::from_bytes(key.as_ref()) {
-                    if let Ok(val) = axum::http::HeaderValue::from_bytes(value.as_ref()) {
-                        response.headers_mut().insert(name, val);
-                    }
+            for (key, value) in &headers {
+                if let Ok(name) = axum::http::HeaderName::from_bytes(key.as_ref())
+                    && let Ok(val) = axum::http::HeaderValue::from_bytes(value.as_ref())
+                {
+                    response.headers_mut().insert(name, val);
                 }
             }
             response

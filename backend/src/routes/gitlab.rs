@@ -1,6 +1,6 @@
 use axum::{
-    extract::{Query, State},
     Json,
+    extract::{Query, State},
 };
 
 use crate::error::AppError;

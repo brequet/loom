@@ -44,13 +44,13 @@ impl SessionService {
         req: CreateSessionRequest,
     ) -> Result<Session, AppError> {
         let id = uuid::Uuid::new_v4().to_string();
-        let title = req.title.unwrap_or_else(|| {
-            match (&req.source_type, &req.source_ref) {
+        let title = req
+            .title
+            .unwrap_or_else(|| match (&req.source_type, &req.source_ref) {
                 (crate::models::SourceType::Jira, Some(r)) => format!("Jira: {r}"),
                 (crate::models::SourceType::Gitlab, Some(r)) => format!("MR: {r}"),
                 _ => "Scratch session".to_string(),
-            }
-        });
+            });
 
         let source_type_str = req.source_type.to_string();
         let state_str = SessionState::Provisioning.to_string();
@@ -67,10 +67,12 @@ impl SessionService {
             "Creating session"
         );
 
-        tokio::fs::create_dir_all(&workspace_path).await.map_err(|e| AppError::Filesystem {
-            context: format!("creating workspace at {}", workspace_path.display()),
-            source: e,
-        })?;
+        tokio::fs::create_dir_all(&workspace_path)
+            .await
+            .map_err(|e| AppError::Filesystem {
+                context: format!("creating workspace at {}", workspace_path.display()),
+                source: e,
+            })?;
 
         let workspace_str = workspace_path.to_string_lossy().to_string();
 
@@ -82,7 +84,7 @@ impl SessionService {
         .bind(&source_type_str)
         .bind(&req.source_ref)
         .bind(&state_str)
-        .bind(port as i64)
+        .bind(i64::from(port))
         .bind(&workspace_str)
         .bind(&req.project_id)
         .execute(pool)
@@ -126,12 +128,16 @@ impl SessionService {
 
         let valid = matches!(
             (&session.state, &new_state),
-            (SessionState::Provisioning, SessionState::Running)
-                | (SessionState::Provisioning, SessionState::Stopped)
-                | (SessionState::Running, SessionState::Stopped)
-                | (SessionState::Running, SessionState::Terminated)
-                | (SessionState::Stopped, SessionState::Running)
-                | (SessionState::Stopped, SessionState::Terminated)
+            (
+                SessionState::Provisioning | SessionState::Stopped,
+                SessionState::Running
+            ) | (
+                SessionState::Provisioning | SessionState::Running,
+                SessionState::Stopped
+            ) | (
+                SessionState::Running | SessionState::Stopped,
+                SessionState::Terminated
+            )
         );
 
         if !valid {
@@ -223,6 +229,7 @@ impl SessionService {
         Ok(())
     }
 
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     async fn allocate_port(&self, pool: &SqlitePool, config: &Config) -> Result<u16, AppError> {
         let used_ports: Vec<(i64,)> = sqlx::query_as(
             "SELECT opencode_port FROM sessions WHERE state != 'terminated' AND opencode_port IS NOT NULL",

@@ -37,7 +37,6 @@ impl SessionState {
         match s {
             "provisioning" => SessionState::Provisioning,
             "running" => SessionState::Running,
-            "stopped" => SessionState::Stopped,
             "terminated" => SessionState::Terminated,
             _ => SessionState::Stopped,
         }
@@ -92,6 +91,7 @@ pub struct Session {
     pub updated_at: String,
 }
 
+#[expect(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
 pub struct Project {
@@ -139,6 +139,7 @@ impl From<SessionRow> for Session {
     }
 }
 
+#[expect(dead_code)]
 #[derive(Debug, sqlx::FromRow)]
 pub struct ProjectRow {
     pub id: String,

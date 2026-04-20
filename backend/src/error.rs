@@ -1,7 +1,7 @@
 use axum::{
+    Json,
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
 };
 use serde_json::json;
 use thiserror::Error;
@@ -42,7 +42,8 @@ pub enum AppError {
     #[error("OpenCode not ready after {attempts} attempts (last error: {last_error})")]
     OpenCodeNotReady { attempts: u32, last_error: String },
 
-    #[error("OpenCode session creation failed: HTTP {status} — {body}")]
+    #[error("OpenCode session creation failed: HTTP {status} -- {body}")]
+    #[expect(dead_code)]
     OpenCodeSessionCreate { status: u16, body: String },
 
     #[error("OpenCode response missing session ID. Response body: {body}")]
@@ -52,7 +53,8 @@ pub enum AppError {
     OpenCodePromptFailed { status: u16, body: String },
 
     // --- Jira ---
-    #[error("Jira API error: HTTP {status} — {body}")]
+    #[error("Jira API error: HTTP {status} -- {body}")]
+    #[expect(dead_code)]
     JiraApi { status: u16, body: String },
 
     // --- GitLab ---
@@ -98,13 +100,12 @@ impl IntoResponse for AppError {
             | AppError::OpenCodeNotReady { .. }
             | AppError::OpenCodeSessionCreate { .. }
             | AppError::OpenCodeNoSessionId { .. }
-            | AppError::OpenCodePromptFailed { .. } => (StatusCode::BAD_GATEWAY, self.to_string()),
-            AppError::JiraApi { .. } | AppError::GitLabApi { .. } => {
-                (StatusCode::BAD_GATEWAY, self.to_string())
-            }
+            | AppError::OpenCodePromptFailed { .. }
+            | AppError::JiraApi { .. }
+            | AppError::GitLabApi { .. }
+            | AppError::HttpRequest { .. }
+            | AppError::ResponseParse { .. } => (StatusCode::BAD_GATEWAY, self.to_string()),
             AppError::Filesystem { .. } => (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()),
-            AppError::HttpRequest { .. } => (StatusCode::BAD_GATEWAY, self.to_string()),
-            AppError::ResponseParse { .. } => (StatusCode::BAD_GATEWAY, self.to_string()),
         };
 
         tracing::error!("{self}");

@@ -1,7 +1,8 @@
 use crate::config::Config;
 use crate::models::{GitLabMergeRequest, JiraIssue, Session, SourceType};
+use std::fmt::Write;
 
-/// Build the initial prompt for an OpenCode session.
+/// Build the initial prompt for an `OpenCode` session.
 ///
 /// The prompt includes:
 /// 1. An optional static preamble from the base prompt file
@@ -15,12 +16,12 @@ pub async fn build_initial_prompt(
     let mut parts = Vec::new();
 
     // 1. Static preamble from file (if exists)
-    if config.base_prompt_path.exists() {
-        if let Ok(preamble) = tokio::fs::read_to_string(&config.base_prompt_path).await {
-            let trimmed = preamble.trim();
-            if !trimmed.is_empty() {
-                parts.push(trimmed.to_string());
-            }
+    if config.base_prompt_path.exists()
+        && let Ok(preamble) = tokio::fs::read_to_string(&config.base_prompt_path).await
+    {
+        let trimmed = preamble.trim();
+        if !trimmed.is_empty() {
+            parts.push(trimmed.to_string());
         }
     }
 
@@ -32,16 +33,15 @@ pub async fn build_initial_prompt(
                     "## Task\n\nYou are working on Jira issue **{}**: {}\n",
                     issue.key, issue.summary
                 );
-                if let Some(ref desc) = issue.description {
-                    if !desc.is_empty() {
-                        ctx.push_str(&format!("\n### Description\n\n{}\n", desc));
-                    }
+                if let Some(ref desc) = issue.description
+                    && !desc.is_empty()
+                {
+                    let _ = write!(ctx, "\n### Description\n\n{desc}\n");
                 }
                 parts.push(ctx);
             } else if let Some(ref source_ref) = session.source_ref {
                 parts.push(format!(
-                    "## Task\n\nYou are working on Jira issue **{}**.\n",
-                    source_ref
+                    "## Task\n\nYou are working on Jira issue **{source_ref}**.\n",
                 ));
             }
         }
@@ -51,16 +51,15 @@ pub async fn build_initial_prompt(
                     "## Task\n\nYou are working on GitLab merge request **!{}**: {}\n\n- **Source branch**: `{}`\n- **URL**: {}\n",
                     mr.iid, mr.title, mr.source_branch, mr.web_url
                 );
-                if let Some(ref desc) = mr.description {
-                    if !desc.is_empty() {
-                        ctx.push_str(&format!("\n### Description\n\n{}\n", desc));
-                    }
+                if let Some(ref desc) = mr.description
+                    && !desc.is_empty()
+                {
+                    let _ = write!(ctx, "\n### Description\n\n{desc}\n");
                 }
                 parts.push(ctx);
             } else if let Some(ref source_ref) = session.source_ref {
                 parts.push(format!(
-                    "## Task\n\nYou are working on a GitLab merge request: {}\n",
-                    source_ref
+                    "## Task\n\nYou are working on a GitLab merge request: {source_ref}\n",
                 ));
             }
         }

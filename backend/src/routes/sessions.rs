@@ -1,12 +1,10 @@
 use axum::{
-    extract::{Path, State},
     Json,
+    extract::{Path, State},
 };
 
 use crate::error::AppError;
-use crate::models::{
-    CreateSessionRequest, Session, SessionListResponse, SessionState, SourceType,
-};
+use crate::models::{CreateSessionRequest, Session, SessionListResponse, SessionState, SourceType};
 use crate::services::prompt;
 use crate::state::AppState;
 
@@ -29,6 +27,7 @@ pub async fn get_session(
     Ok(Json(session))
 }
 
+#[allow(clippy::too_many_lines)]
 pub async fn create_session(
     State(state): State<AppState>,
     Json(req): Json<CreateSessionRequest>,
@@ -78,7 +77,11 @@ pub async fn create_session(
 
             // Discover the web UI path prefix for constructing the correct URL
             let workspace = session.workspace_path.as_deref().unwrap_or("");
-            let path_prefix = match state.opencode_service.get_web_path_prefix(port, workspace).await {
+            let path_prefix = match state
+                .opencode_service
+                .get_web_path_prefix(port, workspace)
+                .await
+            {
                 Ok(prefix) => Some(prefix),
                 Err(e) => {
                     tracing::warn!(
@@ -131,7 +134,11 @@ pub async fn create_session(
 
             let gitlab_mr = if matches!(session.source_type, SourceType::Gitlab) {
                 if let Some(ref url) = session.source_ref {
-                    match state.gitlab_service.get_merge_request_by_url(&state.config, url).await {
+                    match state
+                        .gitlab_service
+                        .get_merge_request_by_url(&state.config, url)
+                        .await
+                    {
                         Ok(mr) => mr,
                         Err(e) => {
                             tracing::warn!(
@@ -159,7 +166,12 @@ pub async fn create_session(
 
             if let Err(e) = state
                 .opencode_service
-                .send_initial_prompt(port, &oc_session_id, &initial_prompt, &state.config.opencode_model)
+                .send_initial_prompt(
+                    port,
+                    &oc_session_id,
+                    &initial_prompt,
+                    &state.config.opencode_model,
+                )
                 .await
             {
                 tracing::warn!(
