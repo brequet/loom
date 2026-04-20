@@ -105,6 +105,10 @@
   }
 </script>
 
+<svelte:head>
+  <title>{session ? `${session.title} | Loom` : 'Loom'}</title>
+</svelte:head>
+
 <div class="space-y-6">
   <button class="text-sm text-muted-foreground hover:text-foreground transition-colors" onclick={() => push('/')}>
     &larr; Back to Dashboard

@@ -40,6 +40,10 @@
   onDestroy(() => clearInterval(interval));
 </script>
 
+<svelte:head>
+  <title>Loom</title>
+</svelte:head>
+
 <div class="space-y-6">
   <div class="flex items-center justify-between">
     <h1 class="text-2xl font-bold">Sessions</h1>
