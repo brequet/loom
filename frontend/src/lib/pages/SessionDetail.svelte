@@ -155,14 +155,9 @@
     <div class="flex gap-3">
       {#if session.state === 'running'}
         {#if getOpenCodeUrl(session)}
-          <a
-            href={getOpenCodeUrl(session)}
-            target="_blank"
-            rel="noopener noreferrer"
-            class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2"
-          >
+          <Button onclick={() => window.open(getOpenCodeUrl(session)!, '_blank')}>
             Open OpenCode
-          </a>
+          </Button>
         {/if}
         <Button variant="outline" onclick={handleStop} disabled={actionLoading}>
           {actionLoading ? 'Stopping...' : 'Stop'}
