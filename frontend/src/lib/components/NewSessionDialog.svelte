@@ -3,6 +3,7 @@
   import { Tabs, TabsContent, TabsList, TabsTrigger } from '$lib/components/ui/tabs/index.js';
   import { Button } from '$lib/components/ui/button/index.js';
   import { Input } from '$lib/components/ui/input/index.js';
+  import { Label } from '$lib/components/ui/label/index.js';
   import { getJiraIssue } from '$lib/api/jira';
   import { createSession } from '$lib/api/sessions';
   import { push } from 'svelte-spa-router';
@@ -16,11 +17,6 @@
   let gitlabError = $state('');
   let jiraError = $state('');
 
-  /**
-   * Parse a Jira issue key from user input.
-   * Accepts either a bare key (e.g. "SAM-398") or a full Jira URL
-   * (e.g. "https://team.atlassian.net/browse/SAM-398").
-   */
   function parseJiraKey(input: string): string | null {
     const trimmed = input.trim();
     const keyMatch = trimmed.match(/^([A-Z]+-\d+)$/i);
@@ -36,7 +32,7 @@
     if (creating) return;
     const key = parseJiraKey(jiraInput);
     if (!key) {
-      jiraError = 'Enter a Jira issue key (e.g. SAM-398) or full URL (e.g. https://team.atlassian.net/browse/SAM-398)';
+      jiraError = 'Enter a valid issue key (e.g. SAM-398) or full Jira URL.';
       return;
     }
 
@@ -66,7 +62,7 @@
 
     const mrMatch = url.match(/merge_requests\/(\d+)/);
     if (!mrMatch) {
-      gitlabError = 'Invalid GitLab MR URL. Expected format: https://gitlab.com/.../merge_requests/42';
+      gitlabError = 'Enter a valid GitLab merge request URL.';
       return;
     }
 
@@ -107,7 +103,7 @@
   <DialogContent class="sm:max-w-lg">
     <DialogHeader>
       <DialogTitle>New Session</DialogTitle>
-      <DialogDescription>Create a session from a Jira issue, GitLab MR, or start from scratch.</DialogDescription>
+      <DialogDescription>Create a coding session from an issue tracker or start fresh.</DialogDescription>
     </DialogHeader>
     <Tabs value="jira">
       <TabsList class="w-full">
@@ -115,40 +111,72 @@
         <TabsTrigger value="gitlab" class="flex-1">GitLab</TabsTrigger>
         <TabsTrigger value="scratch" class="flex-1">Scratch</TabsTrigger>
       </TabsList>
-      <TabsContent value="jira" class="mt-4 space-y-4">
-        <p class="text-sm text-muted-foreground">Enter a Jira issue key or paste a full URL.</p>
-        <Input
-          placeholder="SAM-398 or https://team.atlassian.net/browse/SAM-398"
-          bind:value={jiraInput}
-          onkeydown={(e: KeyboardEvent) => { if (e.key === 'Enter') handleCreateFromJira(); }}
-        />
-        {#if jiraError}
-          <p class="text-sm text-destructive">{jiraError}</p>
-        {/if}
-        <Button onclick={handleCreateFromJira} disabled={creating || !jiraInput.trim()} class="w-full">
-          {creating ? 'Creating...' : 'Create Session'}
-        </Button>
+
+      <TabsContent value="jira" class="mt-4">
+        <form
+          class="space-y-4"
+          onsubmit={(e: Event) => { e.preventDefault(); handleCreateFromJira(); }}
+        >
+          <div class="space-y-2">
+            <Label for="jira-input">Issue key or URL</Label>
+            <Input
+              id="jira-input"
+              placeholder="SAM-398 or https://team.atlassian.net/browse/SAM-398"
+              bind:value={jiraInput}
+              aria-invalid={!!jiraError}
+              aria-describedby={jiraError ? 'jira-error' : undefined}
+            />
+            {#if jiraError}
+              <p id="jira-error" class="text-sm text-destructive">{jiraError}</p>
+            {/if}
+          </div>
+          <Button type="submit" disabled={creating || !jiraInput.trim()} class="w-full">
+            {creating ? 'Creating...' : 'Create Session'}
+          </Button>
+        </form>
       </TabsContent>
-      <TabsContent value="gitlab" class="mt-4 space-y-4">
-        <p class="text-sm text-muted-foreground">Paste a GitLab merge request URL.</p>
-        <Input
-          placeholder="https://gitlab.com/.../merge_requests/42"
-          bind:value={gitlabUrl}
-          onkeydown={(e: KeyboardEvent) => { if (e.key === 'Enter') handleCreateFromGitLabUrl(); }}
-        />
-        {#if gitlabError}
-          <p class="text-sm text-destructive">{gitlabError}</p>
-        {/if}
-        <Button onclick={handleCreateFromGitLabUrl} disabled={creating || !gitlabUrl.trim()} class="w-full">
-          {creating ? 'Creating...' : 'Create Session'}
-        </Button>
+
+      <TabsContent value="gitlab" class="mt-4">
+        <form
+          class="space-y-4"
+          onsubmit={(e: Event) => { e.preventDefault(); handleCreateFromGitLabUrl(); }}
+        >
+          <div class="space-y-2">
+            <Label for="gitlab-input">Merge request URL</Label>
+            <Input
+              id="gitlab-input"
+              placeholder="https://gitlab.com/.../merge_requests/42"
+              bind:value={gitlabUrl}
+              aria-invalid={!!gitlabError}
+              aria-describedby={gitlabError ? 'gitlab-error' : undefined}
+            />
+            {#if gitlabError}
+              <p id="gitlab-error" class="text-sm text-destructive">{gitlabError}</p>
+            {/if}
+          </div>
+          <Button type="submit" disabled={creating || !gitlabUrl.trim()} class="w-full">
+            {creating ? 'Creating...' : 'Create Session'}
+          </Button>
+        </form>
       </TabsContent>
-      <TabsContent value="scratch" class="mt-4 space-y-4">
-        <p class="text-sm text-muted-foreground">Create a scratch session with an optional title.</p>
-        <Input placeholder="Session title (optional)" bind:value={scratchTitle} />
-        <Button onclick={handleCreateScratch} disabled={creating} class="w-full">
-          {creating ? 'Creating...' : 'Create Session'}
-        </Button>
+
+      <TabsContent value="scratch" class="mt-4">
+        <form
+          class="space-y-4"
+          onsubmit={(e: Event) => { e.preventDefault(); handleCreateScratch(); }}
+        >
+          <div class="space-y-2">
+            <Label for="scratch-title">Session title</Label>
+            <Input
+              id="scratch-title"
+              placeholder="Optional -- defaults to 'Scratch session'"
+              bind:value={scratchTitle}
+            />
+          </div>
+          <Button type="submit" disabled={creating} class="w-full">
+            {creating ? 'Creating...' : 'Create Session'}
+          </Button>
+        </form>
       </TabsContent>
     </Tabs>
   </DialogContent>
