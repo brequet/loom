@@ -4,18 +4,31 @@
   import { Button } from '$lib/components/ui/button/index.js';
   import { Input } from '$lib/components/ui/input/index.js';
   import { Label } from '$lib/components/ui/label/index.js';
+  import { Select, SelectContent, SelectItem, SelectTrigger } from '$lib/components/ui/select/index.js';
   import { getJiraIssue } from '$lib/api/jira';
   import { createSession } from '$lib/api/sessions';
   import { push } from 'svelte-spa-router';
 
   let { open = $bindable(false) }: { open?: boolean } = $props();
 
+  const MODELS = [
+    { value: 'github-copilot/gpt-5-mini', label: 'GPT-5 Mini' },
+    { value: 'github-copilot/claude-haiku-4.5', label: 'Claude Haiku 4.5' },
+    { value: 'github-copilot/claude-sonnet-4.6', label: 'Claude Sonnet 4.6' },
+    { value: 'github-copilot/claude-opus-4.6', label: 'Claude Opus 4.6' },
+  ] as const;
+
   let scratchTitle = $state('');
   let gitlabUrl = $state('');
   let jiraInput = $state('');
+  let selectedModel = $state<string>(MODELS[0].value);
   let creating = $state(false);
   let gitlabError = $state('');
   let jiraError = $state('');
+
+  function selectedModelLabel(): string {
+    return MODELS.find((m) => m.value === selectedModel)?.label ?? selectedModel;
+  }
 
   function parseJiraKey(input: string): string | null {
     const trimmed = input.trim();
@@ -44,6 +57,7 @@
         source_type: 'jira',
         source_ref: issue.key,
         title: `${issue.key}: ${issue.summary}`,
+        model: selectedModel,
       });
       open = false;
       jiraInput = '';
@@ -73,6 +87,7 @@
         source_type: 'gitlab',
         source_ref: url,
         title: `MR !${mrMatch[1]}`,
+        model: selectedModel,
       });
       open = false;
       gitlabUrl = '';
@@ -89,6 +104,7 @@
       const session = await createSession({
         source_type: 'scratch',
         title: scratchTitle.trim() || 'Scratch session',
+        model: selectedModel,
       });
       open = false;
       scratchTitle = '';
@@ -105,6 +121,19 @@
       <DialogTitle>New Session</DialogTitle>
       <DialogDescription>Create a coding session from an issue tracker or start fresh.</DialogDescription>
     </DialogHeader>
+
+    <div class="space-y-2">
+      <Label for="model-select">Model</Label>
+      <Select type="single" bind:value={selectedModel}>
+        <SelectTrigger id="model-select">{selectedModelLabel()}</SelectTrigger>
+        <SelectContent>
+          {#each MODELS as model}
+            <SelectItem value={model.value}>{model.label}</SelectItem>
+          {/each}
+        </SelectContent>
+      </Select>
+    </div>
+
     <Tabs value="jira">
       <TabsList class="w-full">
         <TabsTrigger value="jira" class="flex-1">Jira</TabsTrigger>

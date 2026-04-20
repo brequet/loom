@@ -87,6 +87,7 @@ pub struct Session {
     pub opencode_path_prefix: Option<String>,
     pub workspace_path: Option<String>,
     pub project_id: Option<String>,
+    pub model: String,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -116,6 +117,7 @@ pub struct SessionRow {
     pub opencode_path_prefix: Option<String>,
     pub workspace_path: Option<String>,
     pub project_id: Option<String>,
+    pub model: String,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -133,6 +135,7 @@ impl From<SessionRow> for Session {
             opencode_path_prefix: r.opencode_path_prefix,
             workspace_path: r.workspace_path,
             project_id: r.project_id,
+            model: r.model,
             created_at: r.created_at,
             updated_at: r.updated_at,
         }
@@ -170,6 +173,7 @@ pub struct CreateSessionRequest {
     pub source_ref: Option<String>,
     pub project_id: Option<String>,
     pub title: Option<String>,
+    pub model: Option<String>,
 }
 
 #[derive(Debug, Serialize, TS)]

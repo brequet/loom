@@ -14,7 +14,6 @@ pub struct Config {
     pub gitlab_base_url: Option<String>,
     pub gitlab_private_token: Option<String>,
     pub base_prompt_path: PathBuf,
-    pub opencode_model: String,
 }
 
 impl Config {
@@ -50,7 +49,6 @@ impl Config {
                     .join("opencode-prompt.md")
                     .to_string_lossy(),
             )),
-            opencode_model: env_or("LOOM_OPENCODE_MODEL", "github-copilot/gpt-5-mini"),
         }
     }
 

@@ -166,12 +166,7 @@ pub async fn create_session(
 
             if let Err(e) = state
                 .opencode_service
-                .send_initial_prompt(
-                    port,
-                    &oc_session_id,
-                    &initial_prompt,
-                    &state.config.opencode_model,
-                )
+                .send_initial_prompt(port, &oc_session_id, &initial_prompt, &session.model)
                 .await
             {
                 tracing::warn!(

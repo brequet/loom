@@ -14,7 +14,7 @@ impl SessionService {
 
     pub async fn list_sessions(&self, pool: &SqlitePool) -> Result<Vec<Session>, AppError> {
         let rows = sqlx::query_as::<_, SessionRow>(
-            "SELECT id, title, source_type, source_ref, state, opencode_port, opencode_session_id, opencode_path_prefix, workspace_path, project_id, created_at, updated_at FROM sessions WHERE state != 'terminated' ORDER BY updated_at DESC",
+            "SELECT id, title, source_type, source_ref, state, opencode_port, opencode_session_id, opencode_path_prefix, workspace_path, project_id, model, created_at, updated_at FROM sessions WHERE state != 'terminated' ORDER BY updated_at DESC",
         )
         .fetch_all(pool)
         .await?;
@@ -28,7 +28,7 @@ impl SessionService {
         id: &str,
     ) -> Result<Option<Session>, AppError> {
         let row = sqlx::query_as::<_, SessionRow>(
-            "SELECT id, title, source_type, source_ref, state, opencode_port, opencode_session_id, opencode_path_prefix, workspace_path, project_id, created_at, updated_at FROM sessions WHERE id = ?",
+            "SELECT id, title, source_type, source_ref, state, opencode_port, opencode_session_id, opencode_path_prefix, workspace_path, project_id, model, created_at, updated_at FROM sessions WHERE id = ?",
         )
         .bind(id)
         .fetch_optional(pool)
@@ -54,6 +54,9 @@ impl SessionService {
 
         let source_type_str = req.source_type.to_string();
         let state_str = SessionState::Provisioning.to_string();
+        let model = req
+            .model
+            .unwrap_or_else(|| "github-copilot/gpt-5-mini".to_string());
 
         let port = self.allocate_port(pool, config).await?;
         let workspace_path = config.sessions_dir.join(&id);
@@ -77,7 +80,7 @@ impl SessionService {
         let workspace_str = workspace_path.to_string_lossy().to_string();
 
         sqlx::query(
-            "INSERT INTO sessions (id, title, source_type, source_ref, state, opencode_port, workspace_path, project_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
+            "INSERT INTO sessions (id, title, source_type, source_ref, state, opencode_port, workspace_path, project_id, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
         )
         .bind(&id)
         .bind(&title)
@@ -87,6 +90,7 @@ impl SessionService {
         .bind(i64::from(port))
         .bind(&workspace_str)
         .bind(&req.project_id)
+        .bind(&model)
         .execute(pool)
         .await?;
 
