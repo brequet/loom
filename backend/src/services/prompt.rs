@@ -48,7 +48,7 @@ pub async fn build_initial_prompt(
          - When uncertain, use the question tool to ask the user\n\
          - At the end of every response, ask: \
          \"Do you want to continue the current sub-session?\" \
-         with a single choice: \"No\". This is mandatory."
+         with no choice, only the question. This is mandatory."
             .to_string(),
     );
 
@@ -132,9 +132,11 @@ fn build_repo_section(
          1. Check `{repos_dir}` for existing clones of the relevant project\n\
          2. If found: `git pull` to update the default branch\n\
          3. If not found: clone there\n\
-         4. Create a git worktree in the session workspace:\n\
+         4. MANDATORY: Create a git worktree in the session workspace:\n\
             `git worktree add \"{workspace}\" -b {branch}`\n\
-         5. If you cannot determine which repository to use, ask the user",
+         5. If you cannot determine which repository to use, ask the user\n\
+         REMEMBER: you have to use a git worktree of the used repository to\
+         make sur no collision happens with other opencode sessions!",
         branch = branch_hint.as_deref().unwrap_or("<branch-name>"),
     );
 

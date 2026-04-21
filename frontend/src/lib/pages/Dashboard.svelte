@@ -49,7 +49,7 @@
 
     function getOpenCodeUrl(s: Session): string | null {
         if (!s.opencode_port) return null;
-        const base = `http://localhost:${s.opencode_port}`;
+        const base = `http://${window.location.hostname}:${s.opencode_port}`;
         if (s.opencode_path_prefix && s.opencode_session_id) {
             return `${base}/${s.opencode_path_prefix}/session/${s.opencode_session_id}`;
         }
