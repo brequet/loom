@@ -1,15 +1,21 @@
 use sqlx::sqlite::SqlitePool;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 use crate::config::Config;
 use crate::error::AppError;
 use crate::models::{CreateSessionRequest, Session, SessionRow, SessionState};
 
 #[derive(Clone)]
-pub struct SessionService;
+pub struct SessionService {
+    port_lock: Arc<Mutex<()>>,
+}
 
 impl SessionService {
     pub fn new() -> Self {
-        Self
+        Self {
+            port_lock: Arc::new(Mutex::new(())),
+        }
     }
 
     pub async fn list_sessions(&self, pool: &SqlitePool) -> Result<Vec<Session>, AppError> {
@@ -234,6 +240,8 @@ impl SessionService {
 
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     async fn allocate_port(&self, pool: &SqlitePool, config: &Config) -> Result<u16, AppError> {
+        let _guard = self.port_lock.lock().await;
+
         let used_ports: Vec<(i64,)> = sqlx::query_as(
             "SELECT opencode_port FROM sessions WHERE state != 'terminated' AND opencode_port IS NOT NULL",
         )

@@ -89,6 +89,17 @@ pub async fn stop_session(
 ) -> Result<Json<Session>, AppError> {
     tracing::info!(session_id = %id, "Stopping session");
 
+    let current = state
+        .session_service
+        .get_session(&state.pool, &id)
+        .await?
+        .ok_or(AppError::NotFound)?;
+
+    // Idempotent: if already stopped, just return
+    if current.state == SessionState::Stopped {
+        return Ok(Json(current));
+    }
+
     state.opencode_service.stop_process(&id).await?;
 
     let session = state

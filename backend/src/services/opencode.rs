@@ -268,4 +268,22 @@ impl OpenCodeService {
         }
         Ok(())
     }
+
+    /// Returns session IDs whose tracked processes have exited.
+    pub async fn get_dead_sessions(&self) -> Vec<String> {
+        let mut procs = self.processes.lock().await;
+        let mut dead = Vec::new();
+        for (id, child) in procs.iter_mut() {
+            match child.try_wait() {
+                Ok(Some(_)) => dead.push(id.clone()),
+                // Process still running or can't check - skip
+                Ok(None) | Err(_) => {}
+            }
+        }
+        // Clean up dead entries
+        for id in &dead {
+            procs.remove(id);
+        }
+        dead
+    }
 }

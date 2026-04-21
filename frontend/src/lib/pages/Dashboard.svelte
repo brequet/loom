@@ -73,16 +73,32 @@
     }
 
     fetchSessions();
-    const interval = setInterval(fetchSessions, 5000);
-    onDestroy(() => clearInterval(interval));
+    let interval = setInterval(fetchSessions, 5000);
+
+    function onVisibility() {
+      clearInterval(interval);
+      if (!document.hidden) {
+        fetchSessions();
+        interval = setInterval(fetchSessions, 5000);
+      }
+    }
+    document.addEventListener('visibilitychange', onVisibility);
+    onDestroy(() => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisibility);
+    });
 
     async function handleStop(id: string) {
-      await stopSession(id);
+      try {
+        await stopSession(id);
+      } catch { /* idempotent */ }
       await fetchSessions();
     }
 
     async function handleResume(id: string) {
-      await resumeSession(id);
+      try {
+        await resumeSession(id);
+      } catch { /* ignore */ }
       await fetchSessions();
     }
 

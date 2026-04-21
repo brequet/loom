@@ -59,6 +59,28 @@ async fn main() {
         gitlab_service,
     );
 
+    // Background task: periodically check for dead OpenCode processes
+    {
+        let state = app_state.clone();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(30));
+            loop {
+                interval.tick().await;
+                let dead = state.opencode_service.get_dead_sessions().await;
+                for id in dead {
+                    tracing::warn!(session_id = %id, "OpenCode process died, marking session as stopped");
+                    if let Err(e) = state
+                        .session_service
+                        .update_state(&state.pool, &id, models::SessionState::Stopped)
+                        .await
+                    {
+                        tracing::error!(session_id = %id, error = %e, "Failed to mark dead session as stopped");
+                    }
+                }
+            }
+        });
+    }
+
     let cors = CorsLayer::new()
         .allow_origin(Any)
         .allow_methods(Any)
