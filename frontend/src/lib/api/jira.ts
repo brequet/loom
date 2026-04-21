@@ -1,11 +1,7 @@
 import { get } from './client';
+import type { JiraIssue } from '$shared/JiraIssue';
 
-export type JiraIssue = {
-  key: string;
-  summary: string;
-  description: string | null;
-  status: string;
-};
+export type { JiraIssue };
 
 export const getJiraIssue = (key: string) =>
   get<JiraIssue>(`/jira/issues/${key}`);

@@ -1,90 +1,121 @@
 <script lang="ts">
-  import { Card, CardHeader, CardTitle, CardContent } from '$lib/components/ui/card/index.js';
   import { Separator } from '$lib/components/ui/separator/index.js';
   import { get } from '$lib/api/client';
+  import { getAppConfig } from '$lib/api/config';
   import type { HealthResponse } from '$shared/HealthResponse';
+  import type { AppConfig } from '$shared/AppConfig';
 
   let health = $state<HealthResponse | null>(null);
+  let config = $state<AppConfig | null>(null);
+  let loading = $state(true);
 
-  async function fetchHealth() {
+  async function fetchData() {
     try {
-      health = await get<HealthResponse>('/health');
+      const [h, c] = await Promise.all([
+        get<HealthResponse>('/health'),
+        getAppConfig(),
+      ]);
+      health = h;
+      config = c;
     } catch {
       // ignore
+    } finally {
+      loading = false;
     }
   }
-  fetchHealth();
-
-  const envVars = [
-    { name: 'JIRA_BASE_URL', desc: 'Jira instance URL' },
-    { name: 'JIRA_EMAIL', desc: 'Jira authentication email' },
-    { name: 'JIRA_API_TOKEN', desc: 'Jira API token' },
-    { name: 'GITLAB_URL', desc: 'GitLab instance URL' },
-    { name: 'GITLAB_TOKEN', desc: 'GitLab personal access token' },
-    { name: 'OPENCODE_PATH', desc: 'Path to OpenCode binary' },
-  ];
+  fetchData();
 </script>
 
-<div class="space-y-6">
-  <h1 class="text-2xl font-bold">Settings</h1>
+<div class="space-y-8 max-w-2xl mx-auto">
+  <h1 class="text-2xl font-bold tracking-tight">Settings</h1>
 
-  <Card>
-    <CardHeader>
-      <CardTitle>Server Status</CardTitle>
-    </CardHeader>
-    <CardContent class="text-sm">
-      {#if health}
-        <p>Status: <span class="font-medium text-green-600">{health.status}</span></p>
-        <p>Version: <span class="font-mono">{health.version}</span></p>
-      {:else}
-        <p class="text-muted-foreground">Unable to reach server.</p>
-      {/if}
-    </CardContent>
-  </Card>
-
-  <Card>
-    <CardHeader>
-      <CardTitle>Environment Configuration</CardTitle>
-    </CardHeader>
-    <CardContent>
-      <p class="mb-4 text-sm text-muted-foreground">
-        These variables are configured on the server. Status is not available from the frontend.
-      </p>
-      <div class="space-y-3">
-        {#each envVars as v}
-          <div class="flex items-center justify-between text-sm">
-            <div>
-              <p class="font-mono font-medium">{v.name}</p>
-              <p class="text-muted-foreground">{v.desc}</p>
-            </div>
-          </div>
-          {#if v !== envVars[envVars.length - 1]}
-            <Separator />
+  {#if loading}
+    <p class="text-muted-foreground">Loading...</p>
+  {:else}
+    <!-- Server Status -->
+    <section class="space-y-3">
+      <h2 class="text-sm font-medium text-muted-foreground uppercase tracking-wide">Server</h2>
+      <div class="space-y-1">
+        <div class="flex items-baseline py-2 gap-4">
+          <span class="text-sm text-muted-foreground w-32 shrink-0">Status</span>
+          {#if health}
+            <span class="text-sm font-medium text-green-600">{health.status}</span>
+          {:else}
+            <span class="text-sm text-destructive">Unreachable</span>
           {/if}
-        {/each}
+        </div>
+        <div class="flex items-baseline py-2 gap-4">
+          <span class="text-sm text-muted-foreground w-32 shrink-0">Version</span>
+          <span class="text-sm font-mono">{health?.version ?? '—'}</span>
+        </div>
       </div>
-    </CardContent>
-  </Card>
+    </section>
 
-  <Card>
-    <CardHeader>
-      <CardTitle>Paths</CardTitle>
-    </CardHeader>
-    <CardContent class="space-y-2 text-sm">
-      <div>
-        <p class="font-medium">Bare clone cache</p>
-        <p class="font-mono text-muted-foreground">~/.loom/cache/</p>
+    <Separator />
+
+    <!-- Integrations -->
+    <section class="space-y-3">
+      <h2 class="text-sm font-medium text-muted-foreground uppercase tracking-wide">Integrations</h2>
+      <div class="space-y-1">
+        <div class="flex items-baseline py-2 gap-4">
+          <span class="text-sm text-muted-foreground w-32 shrink-0">Jira</span>
+          {#if config?.jira_configured}
+            <span class="text-sm text-green-600">Configured</span>
+          {:else}
+            <span class="text-sm text-muted-foreground">Not configured</span>
+          {/if}
+        </div>
+        <div class="flex items-baseline py-2 gap-4">
+          <span class="text-sm text-muted-foreground w-32 shrink-0">GitLab</span>
+          {#if config?.gitlab_configured}
+            <span class="text-sm text-green-600">Configured</span>
+          {:else}
+            <span class="text-sm text-muted-foreground">Not configured</span>
+          {/if}
+        </div>
       </div>
-      <Separator />
-      <div>
-        <p class="font-medium">Worktrees</p>
-        <p class="font-mono text-muted-foreground">~/.loom/worktrees/</p>
+    </section>
+
+    <Separator />
+
+    <!-- Models -->
+    <section class="space-y-3">
+      <h2 class="text-sm font-medium text-muted-foreground uppercase tracking-wide">Models</h2>
+      <div class="flex items-baseline py-2 gap-4">
+        <span class="text-sm text-muted-foreground w-32 shrink-0">Default</span>
+        <span class="text-sm font-mono">{config?.default_model ?? '—'}</span>
       </div>
-      <Separator />
-      <div>
-        <p class="font-medium">Base prompt file</p>
-        <p class="font-mono text-muted-foreground">~/.loom/base-prompt.md</p>
+      {#if config?.models.length}
+        <div class="space-y-1">
+          {#each config.models as model}
+            <div class="flex items-baseline py-1.5 gap-4">
+              <span class="text-sm w-32 shrink-0">{model.label}</span>
+              <span class="text-sm font-mono text-muted-foreground">{model.id}</span>
+            </div>
+          {/each}
+        </div>
+      {/if}
+    </section>
+
+    <Separator />
+
+    <!-- Paths -->
+    <section class="space-y-3">
+      <h2 class="text-sm font-medium text-muted-foreground uppercase tracking-wide">Paths</h2>
+      <div class="space-y-1">
+        <div class="flex items-baseline py-2 gap-4">
+          <span class="text-sm text-muted-foreground w-32 shrink-0">Sessions</span>
+          <span class="text-sm font-mono truncate">{config?.sessions_dir ?? '—'}</span>
+        </div>
+        <div class="flex items-baseline py-2 gap-4">
+          <span class="text-sm text-muted-foreground w-32 shrink-0">Repos</span>
+          <span class="text-sm font-mono truncate">{config?.repos_dir ?? '—'}</span>
+        </div>
+        <div class="flex items-baseline py-2 gap-4">
+          <span class="text-sm text-muted-foreground w-32 shrink-0">Base prompt</span>
+          <span class="text-sm font-mono truncate">{config?.base_prompt_path ?? '—'}</span>
+        </div>
       </div>
-    </CardContent>
-  </Card>
+    </section>
+  {/if}
 </div>

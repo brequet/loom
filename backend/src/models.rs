@@ -82,6 +82,7 @@ pub struct Session {
     pub source_type: SourceType,
     pub source_ref: Option<String>,
     pub state: SessionState,
+    #[ts(type = "number | null")]
     pub opencode_port: Option<i64>,
     pub opencode_session_id: Option<String>,
     pub opencode_path_prefix: Option<String>,
@@ -128,41 +129,8 @@ impl From<SessionRow> for Session {
             project_id: r.project_id,
             model: r.model,
             custom_instructions: r.custom_instructions,
-            created_at: r.created_at,
-            updated_at: r.updated_at,
-        }
-    }
-}
-
-#[allow(dead_code)]
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export)]
-pub struct Project {
-    pub id: String,
-    pub name: String,
-    pub repo_url: String,
-    pub bare_clone_path: Option<String>,
-    pub created_at: String,
-}
-
-#[allow(dead_code)]
-#[derive(Debug, sqlx::FromRow)]
-pub struct ProjectRow {
-    pub id: String,
-    pub name: String,
-    pub repo_url: String,
-    pub bare_clone_path: Option<String>,
-    pub created_at: String,
-}
-
-impl From<ProjectRow> for Project {
-    fn from(r: ProjectRow) -> Self {
-        Project {
-            id: r.id,
-            name: r.name,
-            repo_url: r.repo_url,
-            bare_clone_path: r.bare_clone_path,
-            created_at: r.created_at,
+            created_at: ensure_utc_suffix(&r.created_at),
+            updated_at: ensure_utc_suffix(&r.updated_at),
         }
     }
 }
@@ -200,6 +168,7 @@ pub struct JiraIssue {
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
 pub struct GitLabMergeRequest {
+    #[ts(type = "number")]
     pub iid: i64,
     pub title: String,
     pub description: Option<String>,
@@ -211,4 +180,13 @@ pub struct GitLabMergeRequest {
 #[derive(Debug, Deserialize)]
 pub struct SearchQuery {
     pub q: String,
+}
+
+/// Ensure datetime strings from SQLite have a `Z` suffix so JS parses them as UTC.
+fn ensure_utc_suffix(s: &str) -> String {
+    if s.ends_with('Z') {
+        s.to_string()
+    } else {
+        format!("{s}Z")
+    }
 }

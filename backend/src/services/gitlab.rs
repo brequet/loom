@@ -28,7 +28,7 @@ impl GitLabService {
 
         let url = format!(
             "{base_url}/api/v4/merge_requests?search={}&state=opened&scope=all&per_page=10&in=title",
-            urlencoding(query)
+            urlencode(query)
         );
 
         let resp = self
@@ -75,7 +75,7 @@ impl GitLabService {
 
         let url = format!(
             "{base_url}/api/v4/projects/{}/merge_requests/{iid}",
-            urlencoding(project_id)
+            urlencode(project_id)
         );
 
         let resp = self
@@ -164,7 +164,7 @@ impl GitLabService {
 
         let api_url = format!(
             "{base_url}/api/v4/projects/{}/merge_requests/{iid}",
-            urlencoding(project_path)
+            urlencode(project_path)
         );
 
         let resp = self
@@ -194,13 +194,6 @@ impl GitLabService {
     }
 }
 
-fn urlencoding(s: &str) -> String {
-    s.chars()
-        .map(|c| match c {
-            ' ' => "%20".to_string(),
-            '"' => "%22".to_string(),
-            _ if c.is_ascii_alphanumeric() || "-._~".contains(c) => c.to_string(),
-            _ => format!("%{:02X}", c as u32),
-        })
-        .collect()
+fn urlencode(s: &str) -> String {
+    urlencoding::encode(s).into_owned()
 }

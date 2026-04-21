@@ -104,6 +104,7 @@
 
     async function handleTerminate() {
         if (!session || actionLoading) return;
+        if (!confirm('Terminate this session? The workspace will be permanently deleted.')) return;
         actionLoading = true;
         try {
             session = await terminateSession(session.id);
@@ -138,6 +139,7 @@
                           ? String(session.opencode_port)
                           : null,
                   },
+                  { label: "Model", value: session.model, mono: true },
                   { label: "Created", value: formatDate(session.created_at) },
                   { label: "Updated", value: formatDate(session.updated_at) },
               ]

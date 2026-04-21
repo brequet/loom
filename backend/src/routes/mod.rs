@@ -21,6 +21,7 @@ struct FrontendAssets;
 pub fn api_routes() -> Router<AppState> {
     Router::new()
         .route("/health", get(health::health))
+        .route("/config", get(health::config))
         // Sessions
         .route(
             "/sessions",

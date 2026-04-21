@@ -2,7 +2,7 @@
     import { onDestroy } from "svelte";
     import type { Session } from "$shared/Session";
     import type { SessionState } from "$shared/SessionState";
-    import { listSessions } from "$lib/api/sessions";
+    import { listSessions, stopSession, resumeSession, terminateSession } from "$lib/api/sessions";
     import { Button } from "$lib/components/ui/button/index.js";
     import {
         Table,
@@ -16,6 +16,7 @@
         DropdownMenu,
         DropdownMenuContent,
         DropdownMenuItem,
+        DropdownMenuSeparator,
         DropdownMenuTrigger,
     } from "$lib/components/ui/dropdown-menu/index.js";
     import StateBadge from "$lib/components/StateBadge.svelte";
@@ -74,6 +75,22 @@
     fetchSessions();
     const interval = setInterval(fetchSessions, 5000);
     onDestroy(() => clearInterval(interval));
+
+    async function handleStop(id: string) {
+      await stopSession(id);
+      await fetchSessions();
+    }
+
+    async function handleResume(id: string) {
+      await resumeSession(id);
+      await fetchSessions();
+    }
+
+    async function handleTerminate(id: string) {
+      if (!confirm('Terminate this session? The workspace will be permanently deleted.')) return;
+      await terminateSession(id);
+      await fetchSessions();
+    }
 </script>
 
 <svelte:head>
@@ -194,6 +211,21 @@
                                                         )}
                                                 >
                                                     Open OpenCode ↗
+                                                </DropdownMenuItem>
+                                            {/if}
+                                            {#if session.state === 'running' || session.state === 'stopped'}
+                                                <DropdownMenuSeparator />
+                                            {/if}
+                                            {#if session.state === 'running'}
+                                                <DropdownMenuItem onclick={() => handleStop(session.id)}>
+                                                    Stop
+                                                </DropdownMenuItem>
+                                            {:else if session.state === 'stopped'}
+                                                <DropdownMenuItem onclick={() => handleResume(session.id)}>
+                                                    Resume
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem class="text-destructive" onclick={() => handleTerminate(session.id)}>
+                                                    Terminate
                                                 </DropdownMenuItem>
                                             {/if}
                                         </DropdownMenuContent>

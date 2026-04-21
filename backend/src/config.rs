@@ -1,4 +1,30 @@
+use serde::Serialize;
 use std::path::PathBuf;
+use ts_rs::TS;
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct ModelDefinition {
+    /// Full model identifier (e.g. "github-copilot/claude-sonnet-4.6")
+    pub id: String,
+    /// Human-readable label (e.g. "Claude Sonnet 4.6")
+    pub label: String,
+    /// Provider prefix (e.g. "github-copilot")
+    pub provider: String,
+}
+
+/// Response for GET /api/config
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct AppConfig {
+    pub models: Vec<ModelDefinition>,
+    pub default_model: String,
+    pub jira_configured: bool,
+    pub gitlab_configured: bool,
+    pub sessions_dir: String,
+    pub repos_dir: String,
+    pub base_prompt_path: String,
+}
 
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -14,11 +40,38 @@ pub struct Config {
     pub gitlab_base_url: Option<String>,
     pub gitlab_private_token: Option<String>,
     pub base_prompt_path: PathBuf,
+    pub default_model: String,
+    pub models: Vec<ModelDefinition>,
 }
 
 impl Config {
     pub fn from_env() -> Self {
         let home = dirs_home();
+
+        let default_model = env_or("LOOM_DEFAULT_MODEL", "github-copilot/claude-sonnet-4.6");
+
+        let models = vec![
+            ModelDefinition {
+                id: "github-copilot/claude-sonnet-4.6".into(),
+                label: "Claude Sonnet 4.6".into(),
+                provider: "github-copilot".into(),
+            },
+            ModelDefinition {
+                id: "github-copilot/claude-opus-4.6".into(),
+                label: "Claude Opus 4.6".into(),
+                provider: "github-copilot".into(),
+            },
+            ModelDefinition {
+                id: "github-copilot/claude-haiku-4.5".into(),
+                label: "Claude Haiku 4.5".into(),
+                provider: "github-copilot".into(),
+            },
+            ModelDefinition {
+                id: "github-copilot/gpt-5-mini".into(),
+                label: "GPT-5 Mini".into(),
+                provider: "github-copilot".into(),
+            },
+        ];
 
         Self {
             port: env_or("LOOM_PORT", "3000").parse().unwrap_or(3000),
@@ -49,6 +102,8 @@ impl Config {
                     .join("opencode-prompt.md")
                     .to_string_lossy(),
             )),
+            default_model,
+            models,
         }
     }
 
@@ -58,6 +113,19 @@ impl Config {
 
     pub fn gitlab_configured(&self) -> bool {
         self.gitlab_base_url.is_some() && self.gitlab_private_token.is_some()
+    }
+
+    /// Build the public-facing config response for the frontend
+    pub fn app_config(&self) -> AppConfig {
+        AppConfig {
+            models: self.models.clone(),
+            default_model: self.default_model.clone(),
+            jira_configured: self.jira_configured(),
+            gitlab_configured: self.gitlab_configured(),
+            sessions_dir: self.sessions_dir.to_string_lossy().to_string(),
+            repos_dir: self.repos_dir.to_string_lossy().to_string(),
+            base_prompt_path: self.base_prompt_path.to_string_lossy().to_string(),
+        }
     }
 }
 

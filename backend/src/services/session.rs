@@ -54,9 +54,7 @@ impl SessionService {
 
         let source_type_str = req.source_type.to_string();
         let state_str = SessionState::Provisioning.to_string();
-        let model = req
-            .model
-            .unwrap_or_else(|| "github-copilot/gpt-5-mini".to_string());
+        let model = req.model.unwrap_or_else(|| config.default_model.clone());
 
         let port = self.allocate_port(pool, config).await?;
         let workspace_path = config.sessions_dir.join(&id);
@@ -171,7 +169,7 @@ impl SessionService {
         pool: &SqlitePool,
         _config: &Config,
         id: &str,
-    ) -> Result<(), AppError> {
+    ) -> Result<Session, AppError> {
         let session = self
             .get_session(pool, id)
             .await?
@@ -215,7 +213,7 @@ impl SessionService {
         }
 
         tracing::info!(session_id = %id, "Session terminated");
-        Ok(())
+        self.get_session(pool, id).await?.ok_or(AppError::NotFound)
     }
 
     pub async fn mark_running_as_stopped(&self, pool: &SqlitePool) -> Result<(), AppError> {
