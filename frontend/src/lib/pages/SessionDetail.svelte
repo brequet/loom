@@ -14,6 +14,11 @@
   let autoOpened = false;
   const shouldAutoOpen = window.location.hash.includes('autoOpen=1');
 
+  // Remove autoOpen from URL immediately so refresh won't re-trigger
+  if (shouldAutoOpen) {
+    window.location.hash = window.location.hash.replace(/[?&]autoOpen=1/, "");
+  }
+
   const sessionQuery = createQuery(() => ({
     queryKey: ['sessions', params.id],
     queryFn: () => getSession(params.id!),
@@ -96,7 +101,6 @@
 
   let fields = $derived(session ? [
     { label: 'Session ID', value: session.id, mono: true },
-    { label: 'Project ID', value: session.project_id, mono: true },
     { label: 'Workspace', value: session.workspace_path, mono: true },
     { label: 'Port', value: session.opencode_port ? String(session.opencode_port) : null },
     { label: 'Model', value: session.model, mono: true },

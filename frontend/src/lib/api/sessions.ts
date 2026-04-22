@@ -6,7 +6,6 @@ export const getSession = (id: string) => get<Session>(`/sessions/${id}`);
 export const createSession = (data: {
   source_type: string;
   source_ref?: string;
-  project_id?: string;
   title?: string;
   model?: string;
   custom_instructions?: string;

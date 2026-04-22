@@ -34,7 +34,7 @@ impl SessionService {
         id: &str,
     ) -> Result<Option<Session>, AppError> {
         let row = sqlx::query_as::<_, SessionRow>(
-            "SELECT id, title, source_type, source_ref, state, opencode_port, opencode_session_id, opencode_path_prefix, workspace_path, project_id, model, custom_instructions, created_at, updated_at FROM sessions WHERE id = ?",
+            "SELECT id, title, source_type, source_ref, state, opencode_port, opencode_session_id, opencode_path_prefix, workspace_path, model, custom_instructions, created_at, updated_at FROM sessions WHERE id = ?",
         )
         .bind(id)
         .fetch_optional(pool)
@@ -84,7 +84,7 @@ impl SessionService {
         let workspace_str = workspace_path.to_string_lossy().to_string();
 
         sqlx::query(
-            "INSERT INTO sessions (id, title, source_type, source_ref, state, opencode_port, workspace_path, project_id, model, custom_instructions, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
+            "INSERT INTO sessions (id, title, source_type, source_ref, state, opencode_port, workspace_path, model, custom_instructions, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
         )
         .bind(&id)
         .bind(&title)
@@ -93,7 +93,6 @@ impl SessionService {
         .bind(&state_str)
         .bind(i64::from(port))
         .bind(&workspace_str)
-        .bind(&req.project_id)
         .bind(&model)
         .bind(&req.custom_instructions)
         .execute(pool)
