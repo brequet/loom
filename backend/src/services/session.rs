@@ -20,7 +20,7 @@ impl SessionService {
 
     pub async fn list_sessions(&self, pool: &SqlitePool) -> Result<Vec<Session>, AppError> {
         let rows = sqlx::query_as::<_, SessionRow>(
-            "SELECT id, title, source_type, source_ref, state, opencode_port, opencode_session_id, opencode_path_prefix, workspace_path, project_id, model, custom_instructions, created_at, updated_at FROM sessions WHERE state != 'terminated' ORDER BY updated_at DESC",
+            "SELECT id, title, source_type, source_ref, state, opencode_port, opencode_session_id, opencode_path_prefix, workspace_path, model, custom_instructions, created_at, updated_at FROM sessions WHERE state != 'terminated' ORDER BY updated_at DESC",
         )
         .fetch_all(pool)
         .await?;
