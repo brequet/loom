@@ -11,6 +11,7 @@ frontend/dist/
 
 # ts-rs generated
 shared/*.ts
+backend/bindings/
 
 # OS
 .DS_Store
