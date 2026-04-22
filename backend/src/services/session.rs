@@ -81,6 +81,20 @@ impl SessionService {
                 source: e,
             })?;
 
+        // Initialize a git repository in the workspace
+        let git_status = tokio::process::Command::new("git")
+            .args(["init"])
+            .current_dir(&workspace_path)
+            .status()
+            .await
+            .map_err(|e| AppError::Filesystem {
+                context: format!("running git init in {}", workspace_path.display()),
+                source: e,
+            })?;
+        if !git_status.success() {
+            tracing::warn!(session_id = %id, "git init failed in workspace");
+        }
+
         let workspace_str = workspace_path.to_string_lossy().to_string();
 
         sqlx::query(
