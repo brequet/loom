@@ -61,7 +61,7 @@ Loom provides a web Dashboard to create and manage isolated OpenCode sessions. E
 
 ### System Prompt Strategy
 
-- User maintains a base prompt file (e.g., `~/.loom/opencode-prompt.md`) listing their repos, preferences, conventions.
+- User maintains a base prompt file (e.g., `~/.config/loom/opencode-prompt.md`) listing their repos, preferences, conventions.
 - Per-session, Loom appends task-specific context: Jira issue title/description, or MR title/description/branch/repo URL.
 - Combined prompt is sent as the first message in the OpenCode session.
 
@@ -86,5 +86,5 @@ Loom provides a web Dashboard to create and manage isolated OpenCode sessions. E
 
 - On startup, Loom should scan for sessions in "running" state and mark them as "stopped" (since their OpenCode processes died with the previous shutdown).
 - Port allocation should check for actual port availability, not just database records.
-- The bare clone cache directory should be configurable (default: `~/.loom/repos/`).
-- Session workspace directory should be configurable (default: `~/.loom/sessions/<session-id>/`).
+- The bare clone cache directory should be configurable (default: `~/.config/loom/repos/`).
+- Session workspace directory should be configurable (default: `~/.config/loom/sessions/<session-id>/`).

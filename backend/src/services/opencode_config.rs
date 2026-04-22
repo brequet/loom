@@ -82,7 +82,7 @@ fn inject_loom_entry(content: &str) -> Option<String> {
     }
 }
 
-/// Ensure ~/.loom/** is allowed in opencode's global config.
+/// Ensure ~/.config/loom/** is allowed in opencode's global config.
 /// Writes atomically (temp file + rename) to avoid corruption.
 pub fn ensure_loom_permitted() {
     let config_path = match opencode_config_path() {
