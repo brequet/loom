@@ -6,7 +6,7 @@ default:
 
 # Generate TypeScript types from Rust models into shared/
 gen-dto:
-    cargo test --manifest-path backend/Cargo.toml
+    $env:TS_RS_EXPORT_DIR = (Resolve-Path "shared").Path; cargo test --manifest-path backend/Cargo.toml
 
 # Build backend (release) - embeds frontend/dist, run build-frontend first
 build-backend:
