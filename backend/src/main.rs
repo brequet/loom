@@ -12,7 +12,8 @@ use tower_http::cors::{Any, CorsLayer};
 
 use config::Config;
 use services::{
-    gitlab::GitLabService, jira::JiraService, opencode::OpenCodeService, session::SessionService,
+    gitlab::GitLabService, jira::JiraService, opencode::OpenCodeService,
+    opencode_config::ensure_loom_permitted, session::SessionService,
 };
 
 #[tokio::main]
@@ -20,6 +21,9 @@ async fn main() {
     tracing_subscriber::fmt::init();
 
     let config = Config::from_env();
+
+    // Ensure ~/.loom/** is permitted in opencode global config
+    ensure_loom_permitted();
 
     // Ensure directories exist
     tokio::fs::create_dir_all(&config.sessions_dir)
