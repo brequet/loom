@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { onDestroy } from 'svelte';
   import type { Session } from '$shared/Session';
   import { getSession, stopSession, resumeSession, terminateSession } from '$lib/api/sessions';
+  import { createQuery, createMutation, useQueryClient } from '@tanstack/svelte-query';
   import { Button } from '$lib/components/ui/button/index.js';
   import { Separator } from '$lib/components/ui/separator/index.js';
   import { Badge } from '$lib/components/ui/badge/index.js';
@@ -10,13 +10,31 @@
 
   let { params = {} }: { params?: { id?: string } } = $props();
 
-  let session = $state<Session | null>(null);
-  let loading = $state(true);
-  let error = $state<string | null>(null);
-  let actionLoading = $state(false);
+  const queryClient = useQueryClient();
   let autoOpened = false;
-
   const shouldAutoOpen = window.location.hash.includes('autoOpen=1');
+
+  const sessionQuery = createQuery(() => ({
+    queryKey: ['sessions', params.id],
+    queryFn: () => getSession(params.id!),
+    enabled: !!params.id,
+    refetchInterval: (query: { state: { data?: Session } }) => {
+      const s = query.state.data;
+      return s && (s.state === 'provisioning' || s.state === 'running') ? 3_000 : false;
+    },
+  }));
+
+  // Auto-open OpenCode when session becomes running
+  $effect(() => {
+    const s = sessionQuery.data;
+    if (shouldAutoOpen && s && s.state === 'running' && !autoOpened) {
+      const url = getOpenCodeUrl(s);
+      if (url) {
+        autoOpened = true;
+        window.open(url, '_blank');
+      }
+    }
+  });
 
   function formatDate(iso: string): string {
     return new Date(iso).toLocaleString();
@@ -34,105 +52,48 @@
     return base;
   }
 
-  function needsPolling(s: Session | null): boolean {
-    return !!s && (s.state === 'provisioning' || s.state === 'running');
-  }
+  const stopMutation = createMutation(() => ({
+    mutationFn: () => stopSession(sessionQuery.data!.id),
+    onSuccess: (data: Session) => {
+      queryClient.setQueryData(['sessions', params.id], data);
+      queryClient.invalidateQueries({ queryKey: ['sessions'], exact: true });
+    },
+    onError: () => {
+      queryClient.invalidateQueries({ queryKey: ['sessions', params.id] });
+    },
+  }));
 
-  async function fetchSession() {
-    if (!params.id) return;
-    try {
-      session = await getSession(params.id);
-      error = null;
+  const resumeMutation = createMutation(() => ({
+    mutationFn: () => resumeSession(sessionQuery.data!.id),
+    onSuccess: (data: Session) => {
+      queryClient.setQueryData(['sessions', params.id], data);
+      queryClient.invalidateQueries({ queryKey: ['sessions'], exact: true });
+    },
+    onError: () => {
+      queryClient.invalidateQueries({ queryKey: ['sessions', params.id] });
+    },
+  }));
 
-      // Auto-open check
-      if (shouldAutoOpen && session && session.state === 'running' && !autoOpened) {
-        const url = getOpenCodeUrl(session);
-        if (url) {
-          autoOpened = true;
-          window.open(url, '_blank');
-        }
-      }
-    } catch (e) {
-      error = e instanceof Error ? e.message : 'Failed to fetch session';
-    } finally {
-      loading = false;
-    }
-  }
+  const terminateMutation = createMutation(() => ({
+    mutationFn: () => terminateSession(sessionQuery.data!.id),
+    onSuccess: (data: Session) => {
+      queryClient.setQueryData(['sessions', params.id], data);
+      queryClient.invalidateQueries({ queryKey: ['sessions'], exact: true });
+    },
+    onError: () => {
+      queryClient.invalidateQueries({ queryKey: ['sessions', params.id] });
+    },
+  }));
 
-  // --- Polling logic (no $effect, no $state for interval) ---
-  let pollTimer: ReturnType<typeof setTimeout> | undefined;
-
-  function schedulePoll() {
-    clearTimeout(pollTimer);
-    if (!document.hidden && needsPolling(session)) {
-      pollTimer = setTimeout(async () => {
-        await fetchSession();
-        schedulePoll();
-      }, 3000);
-    }
-  }
-
-  function handleVisibility() {
-    if (document.hidden) {
-      clearTimeout(pollTimer);
-    } else {
-      fetchSession().then(schedulePoll);
-    }
-  }
-
-  document.addEventListener('visibilitychange', handleVisibility);
-
-  // Initial fetch + start polling
-  fetchSession().then(schedulePoll);
-
-  onDestroy(() => {
-    clearTimeout(pollTimer);
-    document.removeEventListener('visibilitychange', handleVisibility);
-  });
-
-  // --- Action handlers ---
-  async function handleStop() {
-    if (!session || actionLoading) return;
-    clearTimeout(pollTimer);
-    actionLoading = true;
-    try {
-      session = await stopSession(session.id);
-    } catch {
-      await fetchSession();
-    } finally {
-      actionLoading = false;
-      schedulePoll();
-    }
-  }
-
-  async function handleResume() {
-    if (!session || actionLoading) return;
-    actionLoading = true;
-    try {
-      session = await resumeSession(session.id);
-    } catch {
-      await fetchSession();
-    } finally {
-      actionLoading = false;
-      schedulePoll();
-    }
-  }
-
-  async function handleTerminate() {
-    if (!session || actionLoading) return;
+  function handleTerminate() {
     if (!confirm('Terminate this session? The workspace will be permanently deleted.')) return;
-    clearTimeout(pollTimer);
-    actionLoading = true;
-    try {
-      session = await terminateSession(session.id);
-    } catch {
-      await fetchSession();
-    } finally {
-      actionLoading = false;
-    }
+    terminateMutation.mutate();
   }
 
-  // --- Detail fields ---
+  let isMutating = $derived(stopMutation.isPending || resumeMutation.isPending || terminateMutation.isPending);
+
+  let session = $derived(sessionQuery.data ?? null);
+
   let fields = $derived(session ? [
     { label: 'Session ID', value: session.id, mono: true },
     { label: 'Project ID', value: session.project_id, mono: true },
@@ -157,10 +118,10 @@
     Back
   </button>
 
-  {#if loading}
+  {#if sessionQuery.isPending}
     <p class="text-muted-foreground">Loading session...</p>
-  {:else if error}
-    <p class="text-destructive">{error}</p>
+  {:else if sessionQuery.isError}
+    <p class="text-destructive">{sessionQuery.error.message}</p>
   {:else if session}
     <!-- Header -->
     <div class="space-y-3">
@@ -186,8 +147,8 @@
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ml-1"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
             </Button>
           {/if}
-          <Button variant="outline" size="sm" onclick={handleStop} disabled={actionLoading}>
-            {#if actionLoading}
+          <Button variant="outline" size="sm" onclick={() => stopMutation.mutate()} disabled={isMutating}>
+            {#if stopMutation.isPending}
               <div class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent mr-1"></div>
               Stopping...
             {:else}
@@ -195,11 +156,11 @@
             {/if}
           </Button>
         {:else if session.state === 'stopped'}
-          <Button size="sm" onclick={handleResume} disabled={actionLoading}>
-            {actionLoading ? 'Resuming...' : 'Resume'}
+          <Button size="sm" onclick={() => resumeMutation.mutate()} disabled={isMutating}>
+            {resumeMutation.isPending ? 'Resuming...' : 'Resume'}
           </Button>
-          <Button variant="destructive" size="sm" onclick={handleTerminate} disabled={actionLoading}>
-            {actionLoading ? 'Terminating...' : 'Terminate'}
+          <Button variant="destructive" size="sm" onclick={handleTerminate} disabled={isMutating}>
+            {terminateMutation.isPending ? 'Terminating...' : 'Terminate'}
           </Button>
         {:else if session.state === 'provisioning'}
           <div class="flex items-center gap-2 text-sm text-muted-foreground">

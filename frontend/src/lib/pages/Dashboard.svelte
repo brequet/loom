@@ -1,8 +1,8 @@
 <script lang="ts">
-    import { onDestroy } from "svelte";
     import type { Session } from "$shared/Session";
     import type { SessionState } from "$shared/SessionState";
     import { listSessions, stopSession, resumeSession, terminateSession } from "$lib/api/sessions";
+    import { createQuery, createMutation, useQueryClient } from "@tanstack/svelte-query";
     import { Button } from "$lib/components/ui/button/index.js";
     import {
         Table,
@@ -23,10 +23,18 @@
     import NewSessionDialog from "$lib/components/NewSessionDialog.svelte";
     import { push } from "svelte-spa-router";
 
-    let sessions = $state<Session[]>([]);
-    let loading = $state(true);
-    let error = $state<string | null>(null);
+    const queryClient = useQueryClient();
+
     let dialogOpen = $state(false);
+
+    const sessionsQuery = createQuery(() => ({
+        queryKey: ['sessions'],
+        queryFn: async () => {
+            const data = await listSessions();
+            return data.sessions;
+        },
+        refetchInterval: 5_000,
+    }));
 
     const stateOrder: Record<SessionState, number> = {
         running: 0,
@@ -36,7 +44,7 @@
     };
 
     let sorted = $derived(
-        [...sessions].sort((a, b) => stateOrder[a.state] - stateOrder[b.state]),
+        [...(sessionsQuery.data ?? [])].sort((a, b) => stateOrder[a.state] - stateOrder[b.state]),
     );
 
     function formatDate(iso: string): string {
@@ -60,52 +68,24 @@
         return base;
     }
 
-    async function fetchSessions() {
-        try {
-            const data = await listSessions();
-            sessions = data.sessions;
-            error = null;
-        } catch (e) {
-            error = e instanceof Error ? e.message : "Failed to fetch sessions";
-        } finally {
-            loading = false;
-        }
-    }
+    const stopMutation = createMutation(() => ({
+        mutationFn: (id: string) => stopSession(id),
+        onSettled: () => queryClient.invalidateQueries({ queryKey: ['sessions'] }),
+    }));
 
-    fetchSessions();
-    let interval = setInterval(fetchSessions, 5000);
+    const resumeMutation = createMutation(() => ({
+        mutationFn: (id: string) => resumeSession(id),
+        onSettled: () => queryClient.invalidateQueries({ queryKey: ['sessions'] }),
+    }));
 
-    function onVisibility() {
-      clearInterval(interval);
-      if (!document.hidden) {
-        fetchSessions();
-        interval = setInterval(fetchSessions, 5000);
-      }
-    }
-    document.addEventListener('visibilitychange', onVisibility);
-    onDestroy(() => {
-      clearInterval(interval);
-      document.removeEventListener('visibilitychange', onVisibility);
-    });
+    const terminateMutation = createMutation(() => ({
+        mutationFn: (id: string) => terminateSession(id),
+        onSettled: () => queryClient.invalidateQueries({ queryKey: ['sessions'] }),
+    }));
 
-    async function handleStop(id: string) {
-      try {
-        await stopSession(id);
-      } catch { /* idempotent */ }
-      await fetchSessions();
-    }
-
-    async function handleResume(id: string) {
-      try {
-        await resumeSession(id);
-      } catch { /* ignore */ }
-      await fetchSessions();
-    }
-
-    async function handleTerminate(id: string) {
-      if (!confirm('Terminate this session? The workspace will be permanently deleted.')) return;
-      await terminateSession(id);
-      await fetchSessions();
+    function handleTerminate(id: string) {
+        if (!confirm('Terminate this session? The workspace will be permanently deleted.')) return;
+        terminateMutation.mutate(id);
     }
 </script>
 
@@ -119,10 +99,10 @@
         <Button onclick={() => (dialogOpen = true)}>New Session</Button>
     </div>
 
-    {#if loading}
+    {#if sessionsQuery.isPending}
         <p class="text-muted-foreground">Loading sessions...</p>
-    {:else if error}
-        <p class="text-destructive">{error}</p>
+    {:else if sessionsQuery.isError}
+        <p class="text-destructive">{sessionsQuery.error.message}</p>
     {:else if sorted.length === 0}
         <div
             class="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed p-12 text-center"
@@ -233,11 +213,11 @@
                                                 <DropdownMenuSeparator />
                                             {/if}
                                             {#if session.state === 'running'}
-                                                <DropdownMenuItem onclick={() => handleStop(session.id)}>
+                                                <DropdownMenuItem onclick={() => stopMutation.mutate(session.id)}>
                                                     Stop
                                                 </DropdownMenuItem>
                                             {:else if session.state === 'stopped'}
-                                                <DropdownMenuItem onclick={() => handleResume(session.id)}>
+                                                <DropdownMenuItem onclick={() => resumeMutation.mutate(session.id)}>
                                                     Resume
                                                 </DropdownMenuItem>
                                                 <DropdownMenuItem class="text-destructive" onclick={() => handleTerminate(session.id)}>

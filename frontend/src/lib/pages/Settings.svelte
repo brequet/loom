@@ -1,29 +1,26 @@
 <script lang="ts">
   import { Separator } from '$lib/components/ui/separator/index.js';
   import { get } from '$lib/api/client';
-  import { getAppConfig } from '$lib/api/config';
+  import { createQuery } from '@tanstack/svelte-query';
   import type { HealthResponse } from '$shared/HealthResponse';
   import type { AppConfig } from '$shared/AppConfig';
 
-  let health = $state<HealthResponse | null>(null);
-  let config = $state<AppConfig | null>(null);
-  let loading = $state(true);
+  const healthQuery = createQuery(() => ({
+    queryKey: ['health'],
+    queryFn: () => get<HealthResponse>('/health'),
+    staleTime: 30_000,
+    retry: false,
+  }));
 
-  async function fetchData() {
-    try {
-      const [h, c] = await Promise.all([
-        get<HealthResponse>('/health'),
-        getAppConfig(),
-      ]);
-      health = h;
-      config = c;
-    } catch {
-      // ignore
-    } finally {
-      loading = false;
-    }
-  }
-  fetchData();
+  const configQuery = createQuery(() => ({
+    queryKey: ['config'],
+    queryFn: () => get<AppConfig>('/config'),
+    staleTime: Infinity,
+  }));
+
+  let loading = $derived(healthQuery.isPending || configQuery.isPending);
+  let health = $derived(healthQuery.data ?? null);
+  let config = $derived(configQuery.data ?? null);
 </script>
 
 <div class="space-y-8 max-w-2xl mx-auto">

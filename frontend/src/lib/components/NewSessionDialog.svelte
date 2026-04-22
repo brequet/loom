@@ -5,36 +5,57 @@
   import { Input } from '$lib/components/ui/input/index.js';
   import { Label } from '$lib/components/ui/label/index.js';
   import { Select, SelectContent, SelectItem, SelectTrigger } from '$lib/components/ui/select/index.js';
+  import { get } from '$lib/api/client';
   import { getJiraIssue } from '$lib/api/jira';
   import { createSession } from '$lib/api/sessions';
-  import { getAppConfig } from '$lib/api/config';
-  import type { ModelDefinition } from '$shared/ModelDefinition';
+  import { createQuery, createMutation, useQueryClient } from '@tanstack/svelte-query';
+  import type { AppConfig } from '$shared/AppConfig';
+  import type { Session } from '$shared/Session';
   import { push } from 'svelte-spa-router';
 
   let { open = $bindable(false) }: { open?: boolean } = $props();
 
-  let models = $state<ModelDefinition[]>([]);
-  let defaultModel = $state<string>('');
-  let selectedModel = $state<string>('');
-  let configLoaded = $state(false);
-  let jiraConfigured = $state(false);
-  let gitlabConfigured = $state(false);
+  const queryClient = useQueryClient();
 
+  const configQuery = createQuery(() => ({
+    queryKey: ['config'],
+    queryFn: () => get<AppConfig>('/config'),
+    staleTime: Infinity,
+    enabled: open,
+  }));
+
+  let models = $derived(configQuery.data?.models ?? []);
+  let defaultModel = $derived(configQuery.data?.default_model ?? '');
+  let jiraConfigured = $derived(configQuery.data?.jira_configured ?? false);
+  let gitlabConfigured = $derived(configQuery.data?.gitlab_configured ?? false);
+
+  let selectedModel = $state<string>('');
+  let scratchTitle = $state('');
+  let gitlabUrl = $state('');
+  let jiraInput = $state('');
+  let customInstructions = $state('');
+  let gitlabError = $state('');
+  let jiraError = $state('');
+  let scratchError = $state('');
+  let activeTab = $state('');
+
+  // Set initial active tab when config loads
   $effect(() => {
-    if (open && !configLoaded) {
-      getAppConfig().then((cfg) => {
-        models = cfg.models;
-        defaultModel = cfg.default_model;
-        jiraConfigured = cfg.jira_configured;
-        gitlabConfigured = cfg.gitlab_configured;
-        if (!selectedModel) {
-          selectedModel = cfg.default_model;
-        }
-        configLoaded = true;
-      });
+    if (!activeTab && configQuery.data) {
+      activeTab = jiraConfigured ? 'jira' : gitlabConfigured ? 'gitlab' : 'scratch';
     }
+  });
+
+  // Set default model when config loads
+  $effect(() => {
+    if (defaultModel && !selectedModel) {
+      selectedModel = defaultModel;
+    }
+  });
+
+  // Reset form when dialog closes
+  $effect(() => {
     if (!open) {
-      // Reset form state when dialog closes
       scratchTitle = '';
       gitlabUrl = '';
       jiraInput = '';
@@ -45,14 +66,6 @@
       selectedModel = defaultModel;
     }
   });
-
-  let scratchTitle = $state('');
-  let gitlabUrl = $state('');
-  let jiraInput = $state('');
-  let customInstructions = $state('');
-  let creating = $state(false);
-  let gitlabError = $state('');
-  let jiraError = $state('');
 
   function selectedModelLabel(): string {
     return models.find((m) => m.id === selectedModel)?.label ?? selectedModel;
@@ -69,92 +82,90 @@
     return null;
   }
 
-  async function handleCreateFromJira() {
-    if (creating) return;
-    const key = parseJiraKey(jiraInput);
-    if (!key) {
-      jiraError = 'Enter a valid issue key (e.g. SAM-398) or full Jira URL.';
-      return;
-    }
+  function navigateToSession(session: Session) {
+    open = false;
+    queryClient.invalidateQueries({ queryKey: ['sessions'] });
+    push(`/sessions/${session.id}?autoOpen=1`);
+  }
 
-    jiraError = '';
-    creating = true;
-    try {
+  const jiraMutation = createMutation(() => ({
+    mutationFn: async () => {
+      const key = parseJiraKey(jiraInput);
+      if (!key) throw new Error('Enter a valid issue key (e.g. SAM-398) or full Jira URL.');
       const issue = await getJiraIssue(key);
-      const session = await createSession({
+      return createSession({
         source_type: 'jira',
         source_ref: issue.key,
         title: `${issue.key}: ${issue.summary}`,
         model: selectedModel,
         custom_instructions: customInstructions.trim() || undefined,
       });
-      open = false;
-      jiraInput = '';
-      push(`/sessions/${session.id}?autoOpen=1`);
-    } catch (e) {
-      jiraError = e instanceof Error ? e.message : 'Failed to fetch Jira issue';
-    } finally {
-      creating = false;
-    }
-  }
+    },
+    onSuccess: (session: Session) => navigateToSession(session),
+    onError: (e: Error) => { jiraError = e.message; },
+  }));
 
-  async function handleCreateFromGitLabUrl() {
-    if (creating) return;
-    const url = gitlabUrl.trim();
-    if (!url) return;
-
-    const mrMatch = url.match(/merge_requests\/(\d+)/);
-    if (!mrMatch) {
-      gitlabError = 'Enter a valid GitLab merge request URL.';
-      return;
-    }
-
-    gitlabError = '';
-    creating = true;
-    try {
-      const session = await createSession({
+  const gitlabMutation = createMutation(() => ({
+    mutationFn: async () => {
+      const url = gitlabUrl.trim();
+      const mrMatch = url.match(/merge_requests\/(\d+)/);
+      if (!mrMatch) throw new Error('Enter a valid GitLab merge request URL.');
+      return createSession({
         source_type: 'gitlab',
         source_ref: url,
         title: `MR !${mrMatch[1]}`,
         model: selectedModel,
         custom_instructions: customInstructions.trim() || undefined,
       });
-      open = false;
-      gitlabUrl = '';
-      push(`/sessions/${session.id}?autoOpen=1`);
-    } catch (e) {
-      gitlabError = e instanceof Error ? e.message : 'Failed to create session';
-    } finally {
-      creating = false;
-    }
+    },
+    onSuccess: (session: Session) => navigateToSession(session),
+    onError: (e: Error) => { gitlabError = e.message; },
+  }));
+
+  const scratchMutation = createMutation(() => ({
+    mutationFn: () => createSession({
+      source_type: 'scratch',
+      title: scratchTitle.trim() || 'Scratch session',
+      model: selectedModel,
+      custom_instructions: customInstructions.trim() || undefined,
+    }),
+    onSuccess: (session: Session) => navigateToSession(session),
+    onError: (e: Error) => { scratchError = e.message; },
+  }));
+
+  let creating = $derived(jiraMutation.isPending || gitlabMutation.isPending || scratchMutation.isPending);
+
+  function handleCreateFromJira() {
+    if (creating) return;
+    jiraError = '';
+    jiraMutation.mutate();
   }
 
-  let scratchError = $state('');
+  function handleCreateFromGitLabUrl() {
+    if (creating || !gitlabUrl.trim()) return;
+    gitlabError = '';
+    gitlabMutation.mutate();
+  }
 
-  async function handleCreateScratch() {
+  function handleCreateScratch() {
     if (creating) return;
     scratchError = '';
-    creating = true;
-    try {
-      const session = await createSession({
-        source_type: 'scratch',
-        title: scratchTitle.trim() || 'Scratch session',
-        model: selectedModel,
-        custom_instructions: customInstructions.trim() || undefined,
-      });
-      open = false;
-      scratchTitle = '';
-      push(`/sessions/${session.id}?autoOpen=1`);
-    } catch (e) {
-      scratchError = e instanceof Error ? e.message : 'Failed to create session';
-    } finally {
-      creating = false;
+    scratchMutation.mutate();
+  }
+
+  function handleCtrlEnter(e: KeyboardEvent) {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      if (activeTab === 'jira') handleCreateFromJira();
+      else if (activeTab === 'gitlab') handleCreateFromGitLabUrl();
+      else handleCreateScratch();
     }
   }
 </script>
 
 <Dialog bind:open>
-  <DialogContent class="sm:max-w-xl">
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <DialogContent class="sm:max-w-xl" onkeydown={handleCtrlEnter}>
     <DialogHeader>
       <DialogTitle>New Session</DialogTitle>
       <DialogDescription>Create a coding session from an issue tracker or start fresh.</DialogDescription>
@@ -190,7 +201,7 @@
       ></textarea>
     </div>
 
-    <Tabs value={jiraConfigured ? 'jira' : gitlabConfigured ? 'gitlab' : 'scratch'}>
+    <Tabs value={activeTab} onValueChange={(v: string) => { activeTab = v; }}>
       <TabsList class="w-full">
         <TabsTrigger value="jira" class="flex-1" disabled={!jiraConfigured}>Jira{#if !jiraConfigured}<span class="ml-1 text-xs text-muted-foreground">(N/A)</span>{/if}</TabsTrigger>
         <TabsTrigger value="gitlab" class="flex-1" disabled={!gitlabConfigured}>GitLab{#if !gitlabConfigured}<span class="ml-1 text-xs text-muted-foreground">(N/A)</span>{/if}</TabsTrigger>
