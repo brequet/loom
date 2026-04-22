@@ -1,5 +1,5 @@
-/// Ensures the opencode global config allows access to ~/.loom/**
-/// so that sessions running inside ~/.loom/sessions/ are not blocked
+/// Ensures the opencode global config allows access to ~/.config/loom/**
+/// so that sessions running inside ~/.config/loom/sessions/ are not blocked
 /// by the external_directory permission.
 ///
 /// The config file is JSONC (JSON with comments). We do targeted string
@@ -21,18 +21,18 @@ fn opencode_config_path() -> Option<PathBuf> {
     }
 }
 
-/// Check whether the given raw config content already has an entry for ~/.loom.
+/// Check whether the given raw config content already has an entry for ~/.config/loom.
 fn has_loom_entry(content: &str) -> bool {
-    content.contains("~/.loom") || content.contains("$HOME/.loom")
+    content.contains("~/.config/loom") || content.contains("$HOME/.config/loom")
 }
 
-/// Inject `"~/.loom/**": "allow"` into the `external_directory` block.
+/// Inject `"~/.config/loom/**": "allow"` into the `external_directory` block.
 /// If the block doesn't exist, create it inside `permission`.
 /// If `permission` doesn't exist either, add both at the top level.
 ///
 /// Returns the modified content, or None if we can't safely splice.
 fn inject_loom_entry(content: &str) -> Option<String> {
-    let new_entry = r#""~/.loom/**": "allow""#;
+    let new_entry = r#""~/.config/loom/**": "allow""#;
 
     // Try to find existing external_directory block and insert before its closing brace
     if let Some(pos) = content.find("\"external_directory\"") {
@@ -102,18 +102,18 @@ pub fn ensure_loom_permitted() {
     };
 
     if has_loom_entry(&content) {
-        tracing::debug!("opencode config already allows ~/.loom, nothing to do");
+        tracing::debug!("opencode config already allows ~/.config/loom, nothing to do");
         return;
     }
 
-    tracing::info!("opencode config does not allow ~/.loom - patching...");
+    tracing::info!("opencode config does not allow ~/.config/loom - patching...");
 
     let patched = match inject_loom_entry(&content) {
         Some(p) => p,
         None => {
             tracing::warn!(
                 path = %config_path.display(),
-                "Could not automatically patch opencode config - please add '\"~/.loom/**\": \"allow\"' under permission.external_directory manually"
+                "Could not automatically patch opencode config - please add '\"~/.config/loom/**\": \"allow\"' under permission.external_directory manually"
             );
             return;
         }
@@ -132,7 +132,7 @@ pub fn ensure_loom_permitted() {
         return;
     }
 
-    tracing::info!(path = %config_path.display(), "Patched opencode config to allow ~/.loom/**");
+    tracing::info!(path = %config_path.display(), "Patched opencode config to allow ~/.config/loom/**");
 }
 
 #[cfg(test)]
@@ -141,7 +141,7 @@ mod tests {
 
     #[test]
     fn detects_existing_loom_entry() {
-        let content = r#"{ "permission": { "external_directory": { "~/.loom/**": "allow" } } }"#;
+        let content = r#"{ "permission": { "external_directory": { "~/.config/loom/**": "allow" } } }"#;
         assert!(has_loom_entry(content));
     }
 
@@ -155,7 +155,7 @@ mod tests {
   }
 }"#;
         let patched = inject_loom_entry(content).unwrap();
-        assert!(patched.contains("~/.loom/**"));
+        assert!(patched.contains("~/.config/loom/**"));
         assert!(patched.contains("D:\\\\workspaces\\\\**"));
     }
 
@@ -168,6 +168,6 @@ mod tests {
 }"#;
         let patched = inject_loom_entry(content).unwrap();
         assert!(patched.contains("external_directory"));
-        assert!(patched.contains("~/.loom/**"));
+        assert!(patched.contains("~/.config/loom/**"));
     }
 }

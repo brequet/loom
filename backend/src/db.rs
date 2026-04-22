@@ -1,11 +1,9 @@
 use sqlx::sqlite::{SqlitePool, SqlitePoolOptions};
-use std::path::PathBuf;
+
+use crate::config::loom_base_dir;
 
 fn default_db_url() -> String {
-    let home = std::env::var("USERPROFILE")
-        .or_else(|_| std::env::var("HOME"))
-        .map_or_else(|_| PathBuf::from("."), PathBuf::from);
-    let db_path = home.join(".loom").join("loom.db");
+    let db_path = loom_base_dir().join("loom.db");
     format!("sqlite:{}?mode=rwc", db_path.to_string_lossy())
 }
 

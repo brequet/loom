@@ -46,7 +46,7 @@ pub struct Config {
 
 impl Config {
     pub fn from_env() -> Self {
-        let home = dirs_home();
+        let base = loom_base_dir();
 
         let default_model = env_or("LOOM_DEFAULT_MODEL", "github-copilot/claude-sonnet-4.6");
 
@@ -77,11 +77,11 @@ impl Config {
             port: env_or("LOOM_PORT", "3000").parse().unwrap_or(3000),
             sessions_dir: PathBuf::from(env_or(
                 "LOOM_SESSIONS_DIR",
-                &home.join(".loom").join("sessions").to_string_lossy(),
+                &base.join("sessions").to_string_lossy(),
             )),
             repos_dir: PathBuf::from(env_or(
                 "LOOM_REPOS_DIR",
-                &home.join(".loom").join("repos").to_string_lossy(),
+                &base.join("repos").to_string_lossy(),
             )),
             port_range_start: env_or("LOOM_PORT_RANGE_START", "10000")
                 .parse()
@@ -97,10 +97,7 @@ impl Config {
             gitlab_private_token: std::env::var("GITLAB_PRIVATE_TOKEN").ok(),
             base_prompt_path: PathBuf::from(env_or(
                 "LOOM_BASE_PROMPT_PATH",
-                &home
-                    .join(".loom")
-                    .join("opencode-prompt.md")
-                    .to_string_lossy(),
+                &base.join("opencode-prompt.md").to_string_lossy(),
             )),
             default_model,
             models,
@@ -137,4 +134,9 @@ fn dirs_home() -> PathBuf {
     std::env::var("USERPROFILE")
         .or_else(|_| std::env::var("HOME"))
         .map_or_else(|_| PathBuf::from("."), PathBuf::from)
+}
+
+/// Returns ~/.config/loom - the base data directory for loom.
+pub fn loom_base_dir() -> PathBuf {
+    dirs_home().join(".config").join("loom")
 }

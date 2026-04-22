@@ -22,7 +22,7 @@ async fn main() {
 
     let config = Config::from_env();
 
-    // Ensure ~/.loom/** is permitted in opencode global config
+    // Ensure ~/.config/loom/** is permitted in opencode global config
     ensure_loom_permitted();
 
     // Ensure directories exist
