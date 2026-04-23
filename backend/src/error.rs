@@ -42,10 +42,6 @@ pub enum AppError {
     #[error("OpenCode not ready after {attempts} attempts (last error: {last_error})")]
     OpenCodeNotReady { attempts: u32, last_error: String },
 
-    #[error("OpenCode session creation failed: HTTP {status} -- {body}")]
-    #[expect(dead_code)]
-    OpenCodeSessionCreate { status: u16, body: String },
-
     #[error("OpenCode response missing session ID. Response body: {body}")]
     OpenCodeNoSessionId { body: String },
 
@@ -54,7 +50,6 @@ pub enum AppError {
 
     // --- Jira ---
     #[error("Jira API error: HTTP {status} -- {body}")]
-    #[expect(dead_code)]
     JiraApi { status: u16, body: String },
 
     // --- GitLab ---
@@ -98,7 +93,6 @@ impl IntoResponse for AppError {
             }
             AppError::OpenCodeSpawn(_)
             | AppError::OpenCodeNotReady { .. }
-            | AppError::OpenCodeSessionCreate { .. }
             | AppError::OpenCodeNoSessionId { .. }
             | AppError::OpenCodePromptFailed { .. }
             | AppError::JiraApi { .. }

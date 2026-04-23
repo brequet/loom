@@ -44,8 +44,8 @@ impl JiraService {
         if !resp.status().is_success() {
             let status = resp.status().as_u16();
             let body = resp.text().await.unwrap_or_default();
-            tracing::warn!(status = status, key = key, body = %body, "Jira get issue failed");
-            return Ok(None);
+            tracing::error!(status = status, key = key, body = %body, "Jira get issue failed");
+            return Err(AppError::JiraApi { status, body });
         }
 
         let body: serde_json::Value = resp.json().await.map_err(|e| AppError::ResponseParse {
