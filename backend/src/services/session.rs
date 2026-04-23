@@ -18,10 +18,13 @@ impl SessionService {
         }
     }
 
-    pub async fn list_sessions(&self, pool: &SqlitePool) -> Result<Vec<Session>, AppError> {
-        let rows = sqlx::query_as::<_, SessionRow>(
-            "SELECT id, title, source_type, source_ref, state, opencode_port, opencode_session_id, opencode_path_prefix, workspace_path, model, custom_instructions, created_at, updated_at FROM sessions WHERE state != 'terminated' ORDER BY updated_at DESC",
-        )
+    pub async fn list_sessions(&self, pool: &SqlitePool, include_terminated: bool) -> Result<Vec<Session>, AppError> {
+        let query = if include_terminated {
+            "SELECT id, title, source_type, source_ref, state, opencode_port, opencode_session_id, opencode_path_prefix, workspace_path, model, custom_instructions, created_at, updated_at FROM sessions ORDER BY updated_at DESC"
+        } else {
+            "SELECT id, title, source_type, source_ref, state, opencode_port, opencode_session_id, opencode_path_prefix, workspace_path, model, custom_instructions, created_at, updated_at FROM sessions WHERE state != 'terminated' ORDER BY updated_at DESC"
+        };
+        let rows = sqlx::query_as::<_, SessionRow>(query)
         .fetch_all(pool)
         .await?;
 

@@ -1,17 +1,25 @@
 use axum::{
     Json,
-    extract::{Path, State},
+    extract::{Path, Query, State},
 };
+use serde::Deserialize;
 
 use crate::error::AppError;
 use crate::models::{CreateSessionRequest, Session, SessionListResponse, SessionState};
 use crate::services::orchestration;
 use crate::state::AppState;
 
+#[derive(Deserialize)]
+pub struct ListSessionsParams {
+    #[serde(default)]
+    include_terminated: bool,
+}
+
 pub async fn list_sessions(
     State(state): State<AppState>,
+    Query(params): Query<ListSessionsParams>,
 ) -> Result<Json<SessionListResponse>, AppError> {
-    let sessions = state.session_service.list_sessions(&state.pool).await?;
+    let sessions = state.session_service.list_sessions(&state.pool, params.include_terminated).await?;
     Ok(Json(SessionListResponse { sessions }))
 }
 

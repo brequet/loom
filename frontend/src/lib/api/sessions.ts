@@ -3,7 +3,8 @@ import type { SessionListResponse } from '$shared/SessionListResponse';
 import type { CreateSessionRequest } from '$shared/CreateSessionRequest';
 import { get, post } from './client';
 
-export const listSessions = () => get<SessionListResponse>('/sessions');
+export const listSessions = (includeTerminated = false) =>
+  get<SessionListResponse>(`/sessions${includeTerminated ? '?include_terminated=true' : ''}`);
 export const getSession = (id: string) => get<Session>(`/sessions/${id}`);
 export const createSession = (data: CreateSessionRequest) => post<Session>('/sessions', data);
 export const resumeSession = (id: string) => post<Session>(`/sessions/${id}/resume`);

@@ -26,11 +26,12 @@
     const queryClient = useQueryClient();
 
     let dialogOpen = $state(false);
+    let showTerminated = $state(false);
 
     const sessionsQuery = createQuery(() => ({
-        queryKey: ['sessions'],
+        queryKey: ['sessions', { showTerminated }],
         queryFn: async () => {
-            const data = await listSessions();
+            const data = await listSessions(showTerminated);
             return data.sessions;
         },
         refetchInterval: 5_000,
@@ -96,7 +97,12 @@
 <div class="space-y-6">
     <div class="flex items-center justify-between">
         <h1 class="text-2xl font-bold tracking-tight">Sessions</h1>
-        <Button onclick={() => (dialogOpen = true)}>New Session</Button>
+        <div class="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onclick={() => (showTerminated = !showTerminated)} class="text-muted-foreground">
+                {showTerminated ? 'Hide terminated' : 'Show terminated'}
+            </Button>
+            <Button onclick={() => (dialogOpen = true)}>New Session</Button>
+        </div>
     </div>
 
     {#if sessionsQuery.isPending}
