@@ -38,7 +38,10 @@ impl SessionState {
             "provisioning" => SessionState::Provisioning,
             "running" => SessionState::Running,
             "terminated" => SessionState::Terminated,
-            _ => SessionState::Stopped,
+            _ => {
+                tracing::warn!(value = s, "Unknown SessionState in DB, defaulting to Stopped");
+                SessionState::Stopped
+            }
         }
     }
 }
@@ -69,7 +72,10 @@ impl SourceType {
         match s {
             "jira" => SourceType::Jira,
             "gitlab" => SourceType::Gitlab,
-            _ => SourceType::Scratch,
+            _ => {
+                tracing::warn!(value = s, "Unknown SourceType in DB, defaulting to Scratch");
+                SourceType::Scratch
+            }
         }
     }
 }
