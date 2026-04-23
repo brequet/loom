@@ -37,6 +37,7 @@ impl SessionState {
         match s {
             "provisioning" => SessionState::Provisioning,
             "running" => SessionState::Running,
+            "stopped" => SessionState::Stopped,
             "terminated" => SessionState::Terminated,
             _ => {
                 tracing::warn!(value = s, "Unknown SessionState in DB, defaulting to Stopped");
