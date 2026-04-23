@@ -29,7 +29,7 @@ pub async fn provision_session(
     // 2. Create opencode session via REST API
     match state
         .opencode_service
-        .create_opencode_session(port, &session.title)
+        .create_opencode_session(&state.config.opencode_host, port, &session.title)
         .await
     {
         Ok(oc_session_id) => {
@@ -43,7 +43,7 @@ pub async fn provision_session(
             let workspace = session.workspace_path.as_deref().unwrap_or("");
             let path_prefix = state
                 .opencode_service
-                .get_web_path_prefix(port, workspace)
+                .get_web_path_prefix(&state.config.opencode_host, port, workspace)
                 .await
                 .map_err(|e| {
                     tracing::warn!(session_id = %session_id, error = %e, "Failed to discover web UI prefix (non-fatal)");
@@ -79,7 +79,7 @@ pub async fn provision_session(
 
             if let Err(e) = state
                 .opencode_service
-                .send_initial_prompt(port, &oc_session_id, &initial_prompt, &session.model)
+                .send_initial_prompt(&state.config.opencode_host, port, &oc_session_id, &initial_prompt, &session.model)
                 .await
             {
                 tracing::warn!(session_id = %session_id, error = %e, "Failed to send initial prompt (non-fatal)");

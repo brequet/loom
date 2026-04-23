@@ -34,6 +34,7 @@ pub struct Config {
     pub port_range_start: u16,
     pub port_range_end: u16,
     pub opencode_bin: String,
+    pub opencode_host: String,
     pub jira_base_url: Option<String>,
     pub jira_email: Option<String>,
     pub jira_api_token: Option<String>,
@@ -90,6 +91,7 @@ impl Config {
                 .parse()
                 .unwrap_or(10999),
             opencode_bin: env_or("LOOM_OPENCODE_BIN", "opencode"),
+            opencode_host: env_or("LOOM_OPENCODE_HOST", "localhost"),
             jira_base_url: std::env::var("JIRA_BASE_URL").ok(),
             jira_email: std::env::var("JIRA_EMAIL").ok(),
             jira_api_token: std::env::var("JIRA_API_TOKEN").ok(),

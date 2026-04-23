@@ -59,10 +59,11 @@ impl OpenCodeService {
     /// API: POST /session  body: `{ title?: string }`  returns: `Session { id, ... }`
     pub async fn create_opencode_session(
         &self,
+        host: &str,
         port: i64,
         title: &str,
     ) -> Result<String, AppError> {
-        let url = format!("http://localhost:{port}/session");
+        let url = format!("http://{host}:{port}/session");
 
         tracing::info!(port = port, title = title, "Creating OpenCode session");
 
@@ -136,12 +137,13 @@ impl OpenCodeService {
     /// Returns 204 No Content on success.
     pub async fn send_initial_prompt(
         &self,
+        host: &str,
         port: i64,
         session_id: &str,
         prompt: &str,
         model: &str,
     ) -> Result<(), AppError> {
-        let url = format!("http://localhost:{port}/session/{session_id}/prompt_async");
+        let url = format!("http://{host}:{port}/session/{session_id}/prompt_async");
 
         tracing::info!(
             port = port,
@@ -190,12 +192,13 @@ impl OpenCodeService {
     /// Falls back to base64-encoding the workspace path's root drive.
     pub async fn get_web_path_prefix(
         &self,
+        host: &str,
         port: i64,
         workspace: &str,
     ) -> Result<String, AppError> {
         use base64::Engine;
 
-        let url = format!("http://localhost:{port}/project/current");
+        let url = format!("http://{host}:{port}/project/current");
 
         let resp = self
             .client
