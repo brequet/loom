@@ -141,7 +141,7 @@ fn build_repo_section(
     );
 
     if matches!(session.source_type, SourceType::Jira)
-        && !jira_issue.as_ref().is_none_or(|i| i.components.is_empty())
+        && jira_issue.as_ref().is_some_and(|i| !i.components.is_empty())
     {
         let _ = write!(
             section,
