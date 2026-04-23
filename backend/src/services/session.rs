@@ -190,15 +190,7 @@ impl SessionService {
         id: &str,
     ) -> Result<Session, AppError> {
         let session = self
-            .get_session(pool, id)
-            .await?
-            .ok_or(AppError::NotFound)?;
-
-        let state_str = SessionState::Terminated.to_string();
-        sqlx::query("UPDATE sessions SET state = ?, updated_at = datetime('now') WHERE id = ?")
-            .bind(&state_str)
-            .bind(id)
-            .execute(pool)
+            .update_state(pool, id, SessionState::Terminated)
             .await?;
 
         if let Some(ref ws) = session.workspace_path {
@@ -232,7 +224,7 @@ impl SessionService {
         }
 
         tracing::info!(session_id = %id, "Session terminated");
-        self.get_session(pool, id).await?.ok_or(AppError::NotFound)
+        Ok(session)
     }
 
     pub async fn mark_running_as_stopped(&self, pool: &SqlitePool) -> Result<(), AppError> {
