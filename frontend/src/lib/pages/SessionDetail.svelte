@@ -8,16 +8,13 @@
   import StateBadge from '$lib/components/StateBadge.svelte';
   import { push } from 'svelte-spa-router';
 
+  import { autoOpenSession } from '$lib/stores/navigation.svelte';
+
   let { params = {} }: { params?: { id?: string } } = $props();
 
   const queryClient = useQueryClient();
-  let autoOpened = false;
-  const shouldAutoOpen = window.location.hash.includes('autoOpen=1');
-
-  // Remove autoOpen from URL immediately so refresh won't re-trigger
-  if (shouldAutoOpen) {
-    window.location.hash = window.location.hash.replace(/[?&]autoOpen=1/, "");
-  }
+  const shouldAutoOpen = autoOpenSession.id === params.id;
+  if (shouldAutoOpen) autoOpenSession.id = null;
 
   const sessionQuery = createQuery(() => ({
     queryKey: ['sessions', params.id],
@@ -28,6 +25,8 @@
       return s && (s.state === 'provisioning' || s.state === 'running') ? 3_000 : false;
     },
   }));
+
+  let autoOpened = $state(false);
 
   // Auto-open OpenCode when session becomes running
   $effect(() => {

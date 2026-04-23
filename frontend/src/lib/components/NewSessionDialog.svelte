@@ -82,10 +82,13 @@
     return null;
   }
 
+  import { autoOpenSession } from '$lib/stores/navigation.svelte';
+
   function navigateToSession(session: Session) {
     open = false;
     queryClient.invalidateQueries({ queryKey: ['sessions'] });
-    push(`/sessions/${session.id}?autoOpen=1`);
+    autoOpenSession.id = session.id;
+    push(`/sessions/${session.id}`);
   }
 
   const jiraMutation = createMutation(() => ({
