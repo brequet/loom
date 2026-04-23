@@ -29,8 +29,21 @@ pub async fn get_session(
 
 pub async fn create_session(
     State(state): State<AppState>,
-    Json(req): Json<CreateSessionRequest>,
+    Json(mut req): Json<CreateSessionRequest>,
 ) -> Result<Json<Session>, AppError> {
+    // Resolve real MR title for GitLab sessions when none provided
+    if req.source_type == crate::models::SourceType::Gitlab && req.title.is_none() {
+        if let Some(ref url) = req.source_ref {
+            if let Ok(Some(mr)) = state
+                .gitlab_service
+                .get_merge_request_by_url(&state.config, url)
+                .await
+            {
+                req.title = Some(format!("MR !{}: {}", mr.iid, mr.title));
+            }
+        }
+    }
+
     tracing::info!(
         source_type = %req.source_type,
         source_ref = ?req.source_ref,

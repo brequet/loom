@@ -43,7 +43,7 @@ impl SessionState {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[ts(export)]
 pub enum SourceType {
     #[serde(rename = "jira")]

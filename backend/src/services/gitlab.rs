@@ -59,50 +59,6 @@ impl GitLabService {
         Ok(mrs)
     }
 
-    #[expect(dead_code)]
-    pub async fn get_merge_request(
-        &self,
-        config: &Config,
-        project_id: &str,
-        iid: i64,
-    ) -> Result<Option<GitLabMergeRequest>, AppError> {
-        if !config.gitlab_configured() {
-            return Ok(None);
-        }
-
-        let base_url = config.gitlab_base_url.as_deref().unwrap();
-        let token = config.gitlab_private_token.as_deref().unwrap();
-
-        let url = format!(
-            "{base_url}/api/v4/projects/{}/merge_requests/{iid}",
-            urlencode(project_id)
-        );
-
-        let resp = self
-            .client
-            .get(&url)
-            .header("PRIVATE-TOKEN", token)
-            .timeout(std::time::Duration::from_secs(10))
-            .send()
-            .await
-            .map_err(|e| AppError::HttpRequest {
-                context: format!("GitLab get MR {iid}"),
-                source: e,
-            })?;
-
-        if !resp.status().is_success() {
-            let status = resp.status().as_u16();
-            let body = resp.text().await.unwrap_or_default();
-            tracing::warn!(status = status, body = %body, "GitLab get MR failed");
-            return Ok(None);
-        }
-
-        let mr: GitLabMergeRequest = resp.json().await.map_err(|e| AppError::ResponseParse {
-            service: "GitLab".into(),
-            detail: format!("Failed to parse MR response: {e}"),
-        })?;
-        Ok(Some(mr))
-    }
     /// Fetch a merge request from its full web URL.
     /// URL format: `<https://gitlab.com/group/subgroup/project/-/merge_requests/42>`
     pub async fn get_merge_request_by_url(
