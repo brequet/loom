@@ -9,7 +9,7 @@ pub async fn provision_session(
     state: &AppState,
     mut session: Session,
 ) -> Result<Session, AppError> {
-    let port = session.opencode_port.unwrap();
+    let port = session.opencode_port.ok_or(AppError::MissingPort)?;
     let session_id = session.id.clone();
 
     // 1. Spawn opencode process
